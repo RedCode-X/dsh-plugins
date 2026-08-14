@@ -95,10 +95,15 @@ export function describeReason(reason: TurnReason | undefined): string | undefin
 	}
 }
 
-/** Cap the stored output text at the store boundary. */
-function truncate(text: string, maxBytes: number): string {
-	if (text.length <= maxBytes) return text;
-	return `${text.slice(0, maxBytes)}\n…[truncated]`;
+/**
+ * Cap the stored text at the store boundary. Length is measured in UTF-16
+ * code units to match the zod `.max()` caps on the run schema; the truncation
+ * marker is counted against the cap so the result never exceeds it.
+ */
+function truncate(text: string, maxLength: number): string {
+	if (text.length <= maxLength) return text;
+	const marker = "\n…[truncated]";
+	return `${text.slice(0, maxLength - marker.length)}${marker}`;
 }
 
 /** Race a promise against a hard deadline, rejecting with a clear message on expiry. */
@@ -161,32 +166,34 @@ export class TaskExecutor {
 		prestarted?: RunRecord,
 	): Promise<RunRecord> {
 		await this.acquire();
-		const run =
-			prestarted ??
-			(await this.store.beginRun({
-				taskId: task.id,
-				projectPath: task.projectPath,
-				triggeredBy: options.triggeredBy,
-				overdue: options.overdue,
-			}));
-		let sessionId: string | undefined;
-		let outcome: { status: RunStatus; output?: string; error?: string };
 		try {
-			const { status, output, error, spawnedSessionId } = await this.driveAgent(task);
-			sessionId = spawnedSessionId;
-			outcome = { status, ...(output === undefined ? {} : { output }), ...(error === undefined ? {} : { error }) };
-		} catch (error) {
-			outcome = {
-				status: "failed",
-				error: `scheduled-task run failed: ${error instanceof Error ? error.message : String(error)}`,
-			};
+			const run =
+				prestarted ??
+				(await this.store.beginRun({
+					taskId: task.id,
+					projectPath: task.projectPath,
+					triggeredBy: options.triggeredBy,
+					overdue: options.overdue,
+				}));
+			let sessionId: string | undefined;
+			let outcome: { status: RunStatus; output?: string; error?: string };
+			try {
+				const { status, output, error, spawnedSessionId } = await this.driveAgent(task);
+				sessionId = spawnedSessionId;
+				outcome = { status, ...(output === undefined ? {} : { output }), ...(error === undefined ? {} : { error }) };
+			} catch (error) {
+				outcome = {
+					status: "failed",
+					error: `scheduled-task run failed: ${error instanceof Error ? error.message : String(error)}`,
+				};
+			}
+			return await this.store.finishRun(run, task.id, {
+				...outcome,
+				...(sessionId === undefined ? {} : { sessionId }),
+			});
+		} finally {
+			this.release();
 		}
-		const settled = await this.store.finishRun(run, task.id, {
-			...outcome,
-			...(sessionId === undefined ? {} : { sessionId }),
-		});
-		this.release();
-		return settled;
 	}
 
 	/** Create the agent, drive one turn, and summarize; never throws for model failures. */
@@ -252,19 +259,24 @@ export class TaskExecutor {
 		await attachToWorkspace(ctx, task.projectPath, sessionId);
 		await renameRunSession(ctx, agent.session, task);
 		const firstSeq = agent.session.seq;
+		const timeoutLabel = `${Math.round(this.config.runTimeoutMs / 60_000)} minutes`;
 		try {
-			await agent.whenIdle();
+			// A freshly created agent may already be driving an initial turn
+			// before the run prompt is queued; wait that out under the same hard
+			// bound so a stuck initial turn cannot hang the run (and its
+			// concurrency slot) forever.
+			await withTimeout(
+				agent.whenIdle(),
+				this.config.runTimeoutMs,
+				`run timed out after ${timeoutLabel} waiting for the agent to become idle`,
+			);
 			agent.followup(
 				createUserMessage({
 					content: [{ type: "text", text: task.prompt }],
 					source: { kind: "plugin", plugin: "scheduled-tasks" },
 				}),
 			);
-			await withTimeout(
-				agent.whenIdle(),
-				this.config.runTimeoutMs,
-				`run timed out after ${Math.round(this.config.runTimeoutMs / 60_000)} minutes`,
-			);
+			await withTimeout(agent.whenIdle(), this.config.runTimeoutMs, `run timed out after ${timeoutLabel}`);
 			const summary = summarizeRun(agent.session.events, firstSeq);
 			const status: RunStatus = summary.reason?.kind === "completed" ? "completed" : "failed";
 			const error = describeReason(summary.reason);

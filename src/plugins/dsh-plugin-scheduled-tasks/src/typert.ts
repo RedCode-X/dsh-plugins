@@ -52,17 +52,28 @@ export const TYPERT = {
 					{ name: "history", kind: "method", signature: "(id: string): RunView[]" },
 				],
 				types: [
-					{ name: "TaskView", declaration: "export interface TaskView extends Task {}" },
-					{ name: "RunView", declaration: "export interface RunView extends RunRecord {}" },
+					{ name: "TaskId", declaration: "export type TaskId = string;" },
+					{ name: "ProjectPath", declaration: "export type ProjectPath = string;" },
+					{ name: "DeleteResult", declaration: "export interface DeleteResult { id: string; deleted: boolean; }" },
+					{
+						name: "TaskView",
+						declaration:
+							"export interface TaskView { id: string; projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; scheduledAt: string; everySeconds?: number; cron?: string; timeZone?: string; enabled: boolean; state: 'active' | 'finished'; createdAt: string; updatedAt: string; lastRunAt?: string; lastRunId?: string; }",
+					},
+					{
+						name: "RunView",
+						declaration:
+							"export interface RunView { id: string; taskId: string; projectPath: string; triggeredBy: 'schedule' | 'manual'; overdue: boolean; startedAt: string; finishedAt?: string; status: 'running' | 'completed' | 'failed'; output?: string; error?: string; sessionId?: string; }",
+					},
 					{
 						name: "CreateInput",
 						declaration:
-							"export interface CreateInput { projectPath: string; name: string; prompt: string; kind: 'at' | 'every'; at?: AtSelector; everySeconds?: number; enabled?: boolean }",
+							"export interface CreateInput { projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; enabled?: boolean; }",
 					},
 					{
 						name: "UpdateInput",
 						declaration:
-							"export interface UpdateInput { name?: string; prompt?: string; kind?: 'at' | 'every'; at?: AtSelector; everySeconds?: number; enabled?: boolean }",
+							"export interface UpdateInput { name?: string; prompt?: string; kind?: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; enabled?: boolean; }",
 					},
 				],
 			},

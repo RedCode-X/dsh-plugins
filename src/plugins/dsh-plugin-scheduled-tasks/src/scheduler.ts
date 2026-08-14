@@ -190,22 +190,39 @@ export class TaskScheduler {
 			(busy as Error & { code?: string }).code = "task_busy";
 			throw busy;
 		}
-		const run = await this.store.beginRun({
-			taskId: task.id,
-			projectPath: task.projectPath,
-			triggeredBy: "manual",
-			overdue: false,
+		// Reserve the slot synchronously — before the first `await` — so a
+		// concurrent scheduler drive cannot dispatch the same task while
+		// `beginRun` is waiting on the storage write chain.
+		let settle: () => void = () => {};
+		const reserved = new Promise<void>((resolve) => {
+			settle = resolve;
 		});
-		const promise = this.executor.run(task, { triggeredBy: "manual", overdue: false }, run);
-		this.inFlight.set(task.id, promise);
-		void promise
-			.catch(async (error) => {
-				this.ctx.logger.warn(`scheduled-tasks: manual run for task "${task.id}" failed: ${renderThrown(error)}`);
-			})
-			.then(() => {
-				this.inFlight.delete(task.id);
-				this.requestDrive();
+		this.inFlight.set(task.id, reserved);
+		try {
+			const run = await this.store.beginRun({
+				taskId: task.id,
+				projectPath: task.projectPath,
+				triggeredBy: "manual",
+				overdue: false,
 			});
-		return run;
+			const promise = this.executor.run(task, { triggeredBy: "manual", overdue: false }, run);
+			this.inFlight.set(task.id, promise);
+			void promise
+				.catch(async (error) => {
+					this.ctx.logger.warn(`scheduled-tasks: manual run for task "${task.id}" failed: ${renderThrown(error)}`);
+				})
+				.then(() => {
+					this.inFlight.delete(task.id);
+					this.requestDrive();
+				})
+				.finally(() => {
+					settle();
+				});
+			return run;
+		} catch (error) {
+			this.inFlight.delete(task.id);
+			settle();
+			throw error;
+		}
 	}
 }

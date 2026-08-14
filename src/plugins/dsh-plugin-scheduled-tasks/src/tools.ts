@@ -11,6 +11,7 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import type { TaskScheduler } from "./scheduler.js";
 import type { RunView, TaskView } from "./schemas.js";
 import { type TaskCreateInput, TaskNotFoundError, TasksInputError, type TasksStore } from "./store.js";
+import { ScheduleInputError } from "./time.js";
 import type { RunRecord, Task } from "./types.js";
 
 /** Strip every undefined value recursively so the result is JSON-safe. */
@@ -45,6 +46,10 @@ function internalError(): ToolError {
 }
 
 function inputError(error: TasksInputError): ToolError {
+	return { code: error.code, message: error.message };
+}
+
+function scheduleError(error: ScheduleInputError): ToolError {
 	return { code: error.code, message: error.message };
 }
 
@@ -242,6 +247,7 @@ export function registerTaskTools(store: TasksStore, scheduler: TaskScheduler, a
 							return toTaskView(await store.create(built.input));
 						} catch (error) {
 							if (error instanceof TasksInputError) return inputError(error);
+							if (error instanceof ScheduleInputError) return scheduleError(error);
 							return internalError();
 						}
 					},

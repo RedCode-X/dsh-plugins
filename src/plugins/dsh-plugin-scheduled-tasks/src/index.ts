@@ -70,10 +70,12 @@ export async function apply(ctx: Context, config: ScheduledTasksConfig) {
 		}
 	});
 	ctx.effect(
-		() => () => {
+		() => async () => {
 			stopToolInstall();
-			void scheduler.dispose();
-			void domain.close();
+			// Drain the scheduler (awaiting every in-flight run) before closing
+			// the domain, so a settling run never writes against a closed domain.
+			await scheduler.dispose();
+			await domain.close();
 		},
 		"scheduled-tasks.teardown()",
 	);

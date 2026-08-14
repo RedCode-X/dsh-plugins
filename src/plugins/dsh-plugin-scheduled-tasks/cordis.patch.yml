@@ -1,0 +1,15 @@
+# The @opendsh/dsh-plugin-scheduled-tasks bundle patch: mounts the plugin's
+# server half as one Cordis loader row. The same entry is also the browser
+# roster row (the plugin declares `dsh.client`), so the client half is
+# discovered from it by the client-modules node half. Apply this bundle after
+# `dsh-base` + `dsh-web-app`, which provide `agents` (base) and
+# `storageDomain` (web-app); the plugin's own `inject` resolves against those.
+#
+# Optional overrides are exposed as the plugin's `Config` keys; restate the
+# full config here to change them (a patch replaces the whole `config`):
+#   maxConcurrentRuns (default 2), keepRunsPerTask (default 20),
+#   runTimeoutMs (default 1800000).
+
+- insert:
+    - id: scheduled-tasks
+      name: '@opendsh/dsh-plugin-scheduled-tasks'

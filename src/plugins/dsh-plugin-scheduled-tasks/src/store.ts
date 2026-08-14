@@ -267,6 +267,12 @@ export class TasksStore {
 			...(outcome.error === undefined ? {} : { error: outcome.error }),
 			...(outcome.sessionId === undefined ? {} : { sessionId: outcome.sessionId }),
 		};
+		if (this.tasks.get(TaskId(taskId)) === undefined) {
+			// The owning task was deleted while this run was in flight: drop the
+			// run record instead of resurrecting an orphan that nothing lists.
+			await this.runs.delete(RunId(settled.id));
+			return settled;
+		}
 		await this.runs.put(RunId(settled.id), settled);
 		await this.persistTaskTransition(taskId, {
 			lastRunAt: settled.startedAt,
