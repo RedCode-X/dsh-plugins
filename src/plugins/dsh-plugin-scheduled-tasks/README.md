@@ -37,11 +37,11 @@ records the outcome as durable run history.
 
 A dual-face npm package installed into the `web` profile:
 
-| Half | Entry | Role |
-|---|---|---|
-| Server | `lib/index.js` | Cordis plugin: opens the `scheduled_tasks` storage domain (`ctx.storageDomain`), mounts the task store, the scheduler (bounded timers, clock-rollback-safe wakes), the headless executor, and the `ctx.tasks` typert service. |
-| Protocol | `lib/typert.js` | Host TYPERT face (`tasks/*` endpoints), auto-registered by `dsh-typert-loader`. |
-| Browser | `lib/client.js` | React panel mounted into the `sidebar.footer.action` slot; calls the host through the installed `remote.tasks` namespace. |
+| Half     | Entry           | Role                                                                                                                                                                                                                          |
+| -------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server   | `lib/index.js`  | Cordis plugin: opens the `scheduled_tasks` storage domain (`ctx.storageDomain`), mounts the task store, the scheduler (bounded timers, clock-rollback-safe wakes), the headless executor, and the `ctx.tasks` typert service. |
+| Protocol | `lib/typert.js` | Host TYPERT face (`tasks/*` endpoints), auto-registered by `dsh-typert-loader`.                                                                                                                                               |
+| Browser  | `lib/client.js` | React panel mounted into the `sidebar.footer.action` slot; calls the host through the installed `remote.tasks` namespace.                                                                                                     |
 
 The client↔server channel is the DSH typert protocol (the same mechanism
 `dsh-commands` uses): strict zod codecs validate every argument and result on
@@ -50,24 +50,8 @@ both sides, and no session needs to exist for the panel to work.
 ## Install
 
 ```sh
-# from the dsh-plugins workspace root
-pnpm install
-pnpm --dir src/plugins/dsh-plugin-scheduled-tasks build
-
-# install into the web profile and register the loader row
-cd ~/.dsh/profiles/web
-pnpm add "@opendsh/dsh-plugin-scheduled-tasks@file:/absolute/path/to/src/plugins/dsh-plugin-scheduled-tasks"
+dsh plugin --profile web add @opendsh/dsh-plugin-scheduled-tasks
 ```
-
-Add to `~/.dsh/profiles/web/cordis.patch.yml`:
-
-```yaml
-- insert:
-    - id: scheduled-tasks
-      name: '@opendsh/dsh-plugin-scheduled-tasks'
-```
-
-Restart `dsh web`. A ⏰ 定时任务 button appears at the bottom of the sidebar.
 
 ## Development
 
@@ -83,10 +67,10 @@ restart `dsh web` — the plugin has no HMR channel.
 
 ## Configuration
 
-| Key | Default | Meaning |
-|---|---|---|
-| `maxConcurrentRuns` | `2` | Maximum concurrently running agent sessions across all tasks. |
-| `keepRunsPerTask` | `20` | Run-history records retained per task (oldest pruned beyond the cap). |
+| Key                 | Default | Meaning                                                               |
+| ------------------- | ------- | --------------------------------------------------------------------- |
+| `maxConcurrentRuns` | `2`     | Maximum concurrently running agent sessions across all tasks.         |
+| `keepRunsPerTask`   | `20`    | Run-history records retained per task (oldest pruned beyond the cap). |
 
 ## Limitations
 
