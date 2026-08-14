@@ -7,14 +7,16 @@ enable, and disable MCP servers, then **Save** — the change hot-reloads immedi
 (no process restart), because each server is a live `@deepseek-ai/dsh-mcp-client`
 loader entry.
 
+![](./docs/demo.png)
+
 ## What it does
 
 - **View** — lists every configured MCP server with its `serverName`, transport
   (stdio / Streamable HTTP), command or URL, and live state (enabled / disabled,
   plus the connection phase: `active`, `failed`, `loading`, …).
 - **Add / Edit** — full editor for a server: `serverName`, transport, `command`
-  + `args` + `cwd` + `env` (stdio), or `url` + `headers` (HTTP), plus the
-  per-call timeout and the `failOnStartupError` flag.
+  - `args` + `cwd` + `env` (stdio), or `url` + `headers` (HTTP), plus the
+    per-call timeout and the `failOnStartupError` flag.
 - **Remove** — deletes the server's loader entry (with a confirm prompt).
 - **Enable / Disable** — toggles the entry's `disabled` flag without touching
   its config, so a disabled server keeps its full configuration.
@@ -27,10 +29,10 @@ loader entry.
 
 A dual-face npm package installed into the `web` profile:
 
-| Half     | Entry           | Role                                                                                                                                                        |
-| -------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server   | `lib/index.js`  | Cordis plugin (`inject: ["loader"]`): mounts the `ctx.mcp` typert service that projects and reconciles the loader's `@deepseek-ai/dsh-mcp-client` entries.  |
-| Protocol | `lib/typert.js` | Host TYPERT face (`mcp/list`, `mcp/save`), auto-registered by `dsh-typert-loader`.                                                                          |
+| Half     | Entry           | Role                                                                                                                                                       |
+| -------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server   | `lib/index.js`  | Cordis plugin (`inject: ["loader"]`): mounts the `ctx.mcp` typert service that projects and reconciles the loader's `@deepseek-ai/dsh-mcp-client` entries. |
+| Protocol | `lib/typert.js` | Host TYPERT face (`mcp/list`, `mcp/save`), auto-registered by `dsh-typert-loader`.                                                                         |
 | Browser  | `lib/client.js` | React page mounted into the `settings.section` slot; calls the host through the installed `remote.mcp` namespace.                                          |
 
 The client↔server channel is the DSH typert protocol: strict zod codecs validate
@@ -49,12 +51,12 @@ same as:
 
 ```yaml
 - id: mcp-github
-  name: '@deepseek-ai/dsh-mcp-client'
+  name: "@deepseek-ai/dsh-mcp-client"
   config:
     serverName: github
     transport: stdio
     command: npx
-    args: ['-y', '@modelcontextprotocol/server-github']
+    args: ["-y", "@modelcontextprotocol/server-github"]
     env:
       GITHUB_TOKEN: ...
 ```
@@ -63,7 +65,7 @@ and a Streamable HTTP server is the same as:
 
 ```yaml
 - id: mcp-web
-  name: '@deepseek-ai/dsh-mcp-client'
+  name: "@deepseek-ai/dsh-mcp-client"
   config:
     serverName: web
     transport: streamable-http
