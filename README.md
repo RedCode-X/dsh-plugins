@@ -4,15 +4,17 @@ Out-of-tree DeepSeek Harness plugins workspace.
 
 ## Plugins
 
-| Plugin                                                                                    | Description                                                                                                                       | Demo                                                        |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Plugin                                                                              | Description                                                                                                                       | Demo                                                        |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | [`@opendsh/dsh-plugin-scheduled-tasks`](src/plugins/dsh-plugin-scheduled-tasks/README.md) | Per-project scheduled tasks with prompts, executed as headless agent sessions in the project directory, with durable run history. | ![](./src/plugins/dsh-plugin-scheduled-tasks/docs/demo.png) |
+| [`@opendsh/dsh-plugin-setting-mcp`](src/plugins/dsh-plugin-setting-mcp/README.md)   | Manage MCP servers from the settings panel — view, edit, remove, enable/disable — with hot reload on save.                        |                                                             |
 
 ## Workspace layout
 
 ```
 src/plugins/
-└── dsh-plugin-scheduled-tasks   (@opendsh/dsh-plugin-scheduled-tasks)
+├── dsh-plugin-scheduled-tasks   (@opendsh/dsh-plugin-scheduled-tasks)
+└── dsh-plugin-setting-mcp       (@opendsh/dsh-plugin-setting-mcp)
 ```
 
 | Command        | Meaning                                             |
