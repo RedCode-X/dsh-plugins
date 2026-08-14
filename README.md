@@ -2,6 +2,12 @@
 
 Out-of-tree DeepSeek Harness plugins workspace.
 
+## Plugins
+
+| Plugin | Description |
+| --- | --- |
+| [`@opendsh/dsh-plugin-scheduled-tasks`](src/plugins/dsh-plugin-scheduled-tasks/README.md) | Per-project scheduled tasks with prompts, executed as headless agent sessions in the project directory, with durable run history. |
+
 ## Workspace layout
 
 ```
