@@ -4,9 +4,9 @@ Out-of-tree DeepSeek Harness plugins workspace.
 
 ## Plugins
 
-| Plugin | Description |
-| --- | --- |
-| [`@opendsh/dsh-plugin-scheduled-tasks`](src/plugins/dsh-plugin-scheduled-tasks/README.md) | Per-project scheduled tasks with prompts, executed as headless agent sessions in the project directory, with durable run history. |
+| Plugin                                                                                    | Description                                                                                                                       | Demo                                                        |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`@opendsh/dsh-plugin-scheduled-tasks`](src/plugins/dsh-plugin-scheduled-tasks/README.md) | Per-project scheduled tasks with prompts, executed as headless agent sessions in the project directory, with durable run history. | ![](./src/plugins/dsh-plugin-scheduled-tasks/docs/demo.png) |
 
 ## Workspace layout
 
@@ -15,12 +15,12 @@ src/plugins/
 └── dsh-plugin-scheduled-tasks   (@opendsh/dsh-plugin-scheduled-tasks)
 ```
 
-| Command | Meaning |
-|---|---|
+| Command        | Meaning                                             |
+| -------------- | --------------------------------------------------- |
 | `pnpm install` | Install workspace tooling (TypeScript 7, Biome, …). |
-| `pnpm build` | Build every plugin package. |
-| `pnpm test` | Run every plugin's vitest suite. |
-| `pnpm lint` | Biome check across the workspace. |
+| `pnpm build`   | Build every plugin package.                         |
+| `pnpm test`    | Run every plugin's vitest suite.                    |
+| `pnpm lint`    | Biome check across the workspace.                   |
 
 ## Toolchain
 

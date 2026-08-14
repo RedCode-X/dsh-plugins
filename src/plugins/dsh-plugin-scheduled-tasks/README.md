@@ -5,6 +5,8 @@ sidebar (⏰ 定时任务), give it a prompt, and the plugin runs that prompt on
 schedule — as a fresh headless agent session in the project directory — then
 records the outcome as durable run history.
 
+![](./docs/demo.png)
+
 ## What it does
 
 - **Project-scoped tasks** — each task belongs to a project directory (a DSH
