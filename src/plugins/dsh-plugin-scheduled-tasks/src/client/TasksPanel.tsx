@@ -13,11 +13,14 @@
 
 import type { WorkspaceListState } from "@deepseek-ai/dsh-client-runtime/client";
 import { IconChecklistOutline14 } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { SnapshotSelectorHook } from "@deepseek-ai/dsh-client-ui-slots";
+import type { SnapshotSelectorHook, TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CreateInput, RunView, TaskView, UpdateInput } from "../schemas.js";
 import type { RpcResult, TasksRemote } from "./remote.js";
 import { C } from "./styles.js";
+
+/** The translate seat of this plugin's `scheduled-tasks` locale namespace. */
+export type PanelTranslate = TranslateNS<"scheduled-tasks">;
 
 /** Owner + injected + framework standard props for the footer action entry. */
 export interface TasksFooterActionProps {
@@ -27,6 +30,8 @@ export interface TasksFooterActionProps {
 	tasks: TasksRemote;
 	/** Framework standard kit (scope `root`). */
 	useWorkspaces: SnapshotSelectorHook<WorkspaceListState>;
+	/** Framework-injected translate seat (namespace `scheduled-tasks`). */
+	t: PanelTranslate;
 }
 
 // ── layout-only inline helpers (colors live in the stylesheet) ─────────────
@@ -40,29 +45,29 @@ const layout = {
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-function taskBadge(task: TaskView): { cls: string; text: string } {
-	if (task.state === "finished") return { cls: C.badgeDim, text: "已结束" };
-	if (!task.enabled) return { cls: C.badgeDim, text: "已停用" };
+function taskBadge(t: PanelTranslate, task: TaskView): { cls: string; text: string } {
+	if (task.state === "finished") return { cls: C.badgeDim, text: t("badge.finished") };
+	if (!task.enabled) return { cls: C.badgeDim, text: t("badge.disabled") };
 	const remaining = Date.parse(task.scheduledAt) - Date.now();
-	if (remaining <= 0) return { cls: C.badgeWarn, text: "待运行" };
-	return { cls: C.badgeSuccess, text: "已启用" };
+	if (remaining <= 0) return { cls: C.badgeWarn, text: t("badge.due") };
+	return { cls: C.badgeSuccess, text: t("badge.enabled") };
 }
 
-function runBadge(status: RunView["status"]): { cls: string; text: string } {
+function runBadge(t: PanelTranslate, status: RunView["status"]): { cls: string; text: string } {
 	switch (status) {
 		case "running":
-			return { cls: C.badgeSuccess, text: "运行中" };
+			return { cls: C.badgeSuccess, text: t("badge.running") };
 		case "completed":
-			return { cls: C.badgeSuccess, text: "成功" };
+			return { cls: C.badgeSuccess, text: t("badge.completed") };
 		case "failed":
-			return { cls: C.badgeError, text: "失败" };
+			return { cls: C.badgeError, text: t("badge.failed") };
 	}
 }
 
-function scheduleText(task: TaskView): string {
-	if (task.kind === "at") return `一次性 · ${formatLocal(task.scheduledAt)}`;
-	if (task.kind === "cron") return `Cron ${task.cron ?? "?"} · ${task.timeZone ?? "UTC"}`;
-	return `每 ${task.everySeconds ?? "?"} 秒 · 创建锚定`;
+function scheduleText(t: PanelTranslate, task: TaskView): string {
+	if (task.kind === "at") return t("schedule.at", { time: formatLocal(task.scheduledAt) });
+	if (task.kind === "cron") return t("schedule.cron", { expr: task.cron ?? "?", zone: task.timeZone ?? "UTC" });
+	return t("schedule.every", { seconds: task.everySeconds ?? "?" });
 }
 
 function formatLocal(instant: string): string {
@@ -71,17 +76,17 @@ function formatLocal(instant: string): string {
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function nextRunText(task: TaskView): string {
-	if (task.state === "finished") return "已结束";
-	if (!task.enabled) return "已停用";
+function nextRunText(t: PanelTranslate, task: TaskView): string {
+	if (task.state === "finished") return t("nextRun.finished");
+	if (!task.enabled) return t("nextRun.disabled");
 	const remaining = Date.parse(task.scheduledAt) - Date.now();
-	if (remaining <= 0) return "已到期，等待调度";
+	if (remaining <= 0) return t("nextRun.due");
 	const minutes = Math.floor(remaining / 60_000);
-	if (minutes < 1) return "即将运行";
-	if (minutes < 60) return `${minutes} 分钟后`;
+	if (minutes < 1) return t("nextRun.soon");
+	if (minutes < 60) return t("nextRun.minutes", { count: minutes });
 	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours} 小时后`;
-	return `${Math.floor(hours / 24)} 天后`;
+	if (hours < 24) return t("nextRun.hours", { count: hours });
+	return t("nextRun.days", { count: Math.floor(hours / 24) });
 }
 
 function errorText(result: RpcResult<unknown>): string {
@@ -102,9 +107,10 @@ interface RunHistoryProps {
 	tasks: TasksRemote;
 	task: TaskView;
 	onBack: () => void;
+	t: PanelTranslate;
 }
 
-function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
+function RunHistory({ tasks, task, onBack, t }: RunHistoryProps) {
 	const [runs, setRuns] = useState<RunView[]>([]);
 	const [error, setError] = useState("");
 	const [expanded, setExpanded] = useState<string | undefined>();
@@ -126,9 +132,9 @@ function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
 		<div style={layout.column}>
 			<div style={layout.row}>
 				<button type="button" className={C.btn} onClick={onBack}>
-					← 返回
+					← {t("history.back")}
 				</button>
-				<span className={C.name}>{task.name} · 运行历史</span>
+				<span className={C.name}>{t("history.title", { name: task.name })}</span>
 				<span style={layout.spacer} />
 				<button
 					type="button"
@@ -139,13 +145,13 @@ function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
 						void refresh().finally(() => setBusy(false));
 					}}
 				>
-					刷新
+					{t("history.refresh")}
 				</button>
 			</div>
 			{error !== "" && <div className={C.error}>{error}</div>}
-			{runs.length === 0 && <div className={C.empty}>暂无运行记录</div>}
+			{runs.length === 0 && <div className={C.empty}>{t("history.empty")}</div>}
 			{runs.map((run) => {
-				const badge = runBadge(run.status);
+				const badge = runBadge(t, run.status);
 				return (
 					<div key={run.id} className={C.row}>
 						<span className={`${C.badge} ${badge.cls}`}>{badge.text}</span>
@@ -153,7 +159,11 @@ function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
 							<div className={C.meta}>
 								{formatLocal(run.startedAt)}
 								{run.finishedAt !== undefined ? ` → ${formatLocal(run.finishedAt)}` : ""}
-								{run.triggeredBy === "manual" ? " · 手动" : run.overdue ? " · 补跑" : " · 定时"}
+								{run.triggeredBy === "manual"
+									? ` · ${t("history.trigger.manual")}`
+									: run.overdue
+										? ` · ${t("history.trigger.overdue")}`
+										: ` · ${t("history.trigger.scheduled")}`}
 							</div>
 							{expanded === run.id && (
 								<div style={{ marginTop: 4 }}>
@@ -163,7 +173,9 @@ function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
 										</div>
 									)}
 									{run.output !== undefined && <pre className={C.output}>{run.output}</pre>}
-									{run.output === undefined && run.error === undefined && <div className={C.meta}>（无输出）</div>}
+									{run.output === undefined && run.error === undefined && (
+										<div className={C.meta}>{t("history.noOutput")}</div>
+									)}
 								</div>
 							)}
 						</div>
@@ -172,7 +184,7 @@ function RunHistory({ tasks, task, onBack }: RunHistoryProps) {
 							className={C.btn}
 							onClick={() => setExpanded(expanded === run.id ? undefined : run.id)}
 						>
-							{expanded === run.id ? "收起" : "详情"}
+							{expanded === run.id ? t("history.collapse") : t("history.details")}
 						</button>
 					</div>
 				);
@@ -187,9 +199,10 @@ interface TaskFormProps {
 	initial?: TaskView;
 	onSaved: () => void;
 	onCancel: () => void;
+	t: PanelTranslate;
 }
 
-function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormProps) {
+function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFormProps) {
 	const [name, setName] = useState(initial?.name ?? "");
 	const [prompt, setPrompt] = useState(initial?.prompt ?? "");
 	const [kind, setKind] = useState<"at" | "every" | "cron">(initial?.kind ?? "at");
@@ -214,11 +227,11 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 
 	const submit = async () => {
 		if (name.trim() === "") {
-			setError("请填写任务名称。");
+			setError(t("form.error.nameRequired"));
 			return;
 		}
 		if (prompt.trim() === "") {
-			setError("请填写提示词。");
+			setError(t("form.error.promptRequired"));
 			return;
 		}
 		const base: CreateInput = {
@@ -233,14 +246,14 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 			input = { ...base, at: { date: atDate, time: `${atTime}:00`, time_zone: timeZone } };
 		} else if (kind === "cron") {
 			if (cron.trim() === "") {
-				setError("请填写 Cron 表达式。");
+				setError(t("form.error.cronRequired"));
 				return;
 			}
 			input = { ...base, cron: cron.trim(), timeZone };
 		} else {
 			const minutes = Number(everyMinutes);
 			if (!Number.isSafeInteger(minutes) || minutes * 60 < 300) {
-				setError("周期必须不少于 5 分钟。");
+				setError(t("form.error.intervalTooShort"));
 				return;
 			}
 			input = { ...base, everySeconds: minutes * 60 };
@@ -266,37 +279,37 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 		<div style={layout.column}>
 			<div style={layout.row}>
 				<button type="button" className={C.btn} onClick={onCancel}>
-					← 返回
+					← {t("form.back")}
 				</button>
-				<span className={C.name}>{initial === undefined ? "新建定时任务" : "编辑任务"}</span>
+				<span className={C.name}>{initial === undefined ? t("form.new") : t("form.edit")}</span>
 			</div>
 			<div style={layout.field}>
-				<div className={C.label}>任务名称</div>
+				<div className={C.label}>{t("form.taskName")}</div>
 				<input
 					className={C.input}
 					value={name}
 					onChange={(event) => setName(event.target.value)}
-					placeholder="例如：每日代码检查"
+					placeholder={t("form.taskNamePlaceholder")}
 				/>
 			</div>
 			<div style={layout.field}>
-				<div className={C.label}>提示词（到点后会在项目目录中由全新 agent 会话执行）</div>
+				<div className={C.label}>{t("form.prompt")}</div>
 				<textarea
 					className={C.textarea}
 					value={prompt}
 					onChange={(event) => setPrompt(event.target.value)}
-					placeholder="例如：检查项目里的 TODO 注释，汇总成一份清单。"
+					placeholder={t("form.promptPlaceholder")}
 				/>
 			</div>
 			<div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
 				<div style={layout.field}>
-					<div className={C.label}>调度类型</div>
+					<div className={C.label}>{t("form.scheduleType")}</div>
 					<div style={layout.row}>
 						<label style={{ cursor: "pointer", ...layout.row, gap: 4 }}>
-							<input type="radio" checked={kind === "at"} onChange={() => setKind("at")} /> 一次性
+							<input type="radio" checked={kind === "at"} onChange={() => setKind("at")} /> {t("form.oneShot")}
 						</label>
 						<label style={{ cursor: "pointer", ...layout.row, gap: 4 }}>
-							<input type="radio" checked={kind === "every"} onChange={() => setKind("every")} /> 周期
+							<input type="radio" checked={kind === "every"} onChange={() => setKind("every")} /> {t("form.interval")}
 						</label>
 						<label style={{ cursor: "pointer", ...layout.row, gap: 4 }}>
 							<input type="radio" checked={kind === "cron"} onChange={() => setKind("cron")} /> Cron
@@ -307,15 +320,15 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 			{kind === "at" ? (
 				<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
 					<div style={{ ...layout.field, flex: 1, minWidth: 140 }}>
-						<div className={C.label}>日期</div>
+						<div className={C.label}>{t("form.date")}</div>
 						<input className={C.input} type="date" value={atDate} onChange={(event) => setAtDate(event.target.value)} />
 					</div>
 					<div style={{ ...layout.field, flex: 1, minWidth: 100 }}>
-						<div className={C.label}>时间（本地）</div>
+						<div className={C.label}>{t("form.time")}</div>
 						<input className={C.input} type="time" value={atTime} onChange={(event) => setAtTime(event.target.value)} />
 					</div>
 					<div style={{ ...layout.field, flex: 1, minWidth: 160 }}>
-						<div className={C.label}>时区（IANA）</div>
+						<div className={C.label}>{t("form.timeZone")}</div>
 						<input
 							className={C.input}
 							value={timeZone}
@@ -327,7 +340,7 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 			) : kind === "cron" ? (
 				<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
 					<div style={{ ...layout.field, flex: 2, minWidth: 220 }}>
-						<div className={C.label}>Cron 表达式（分 时 日 月 周，如 0 9 * * 1-5）</div>
+						<div className={C.label}>{t("form.cronExpression")}</div>
 						<input
 							className={C.input}
 							value={cron}
@@ -336,7 +349,7 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 						/>
 					</div>
 					<div style={{ ...layout.field, flex: 1, minWidth: 160 }}>
-						<div className={C.label}>时区（IANA）</div>
+						<div className={C.label}>{t("form.timeZone")}</div>
 						<input
 							className={C.input}
 							value={timeZone}
@@ -347,7 +360,7 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 				</div>
 			) : (
 				<div style={{ ...layout.field, maxWidth: 200 }}>
-					<div className={C.label}>周期（分钟，不少于 5）</div>
+					<div className={C.label}>{t("form.intervalMinutes")}</div>
 					<input
 						className={C.input}
 						type="number"
@@ -359,15 +372,15 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 				</div>
 			)}
 			<label style={{ cursor: "pointer", ...layout.row, gap: 6 }}>
-				<input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> 启用
+				<input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> {t("form.enabled")}
 			</label>
 			{error !== "" && <div className={C.error}>{error}</div>}
 			<div style={layout.row}>
 				<button type="button" className={`${C.btn} ${C.btnPrimary}`} disabled={busy} onClick={() => void submit()}>
-					{busy ? "保存中…" : "保存"}
+					{busy ? t("form.saving") : t("form.save")}
 				</button>
 				<button type="button" className={C.btn} onClick={onCancel}>
-					取消
+					{t("form.cancel")}
 				</button>
 			</div>
 		</div>
@@ -379,7 +392,7 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel }: TaskFormPr
 type View = { kind: "list" } | { kind: "form"; task?: TaskView } | { kind: "history"; task: TaskView };
 
 export function TasksFooterAction(props: TasksFooterActionProps) {
-	const { wide, tasks } = props;
+	const { wide, tasks, t } = props;
 	const workspaceItems = props.useWorkspaces((state) => state.items);
 	const recentWorkspaceId = props.useWorkspaces((state) => state.recentWorkspaceId);
 	const [open, setOpen] = useState(false);
@@ -438,7 +451,7 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 	};
 
 	const remove = (task: TaskView) => {
-		if (!window.confirm(`确定删除任务「${task.name}」及其运行历史吗？`)) return;
+		if (!window.confirm(t("list.confirmDelete", { name: task.name }))) return;
 		setBusy(true);
 		void tasks
 			.delete(task.id)
@@ -470,19 +483,19 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 				<button
 					type="button"
 					className={C.trigger}
-					title="定时任务"
+					title={t("title")}
 					aria-haspopup="dialog"
 					aria-expanded={open}
 					onClick={() => setOpen((current) => !current)}
 				>
 					<IconChecklistOutline14 size={16} />
-					<span className={C.triggerLabel}>定时任务</span>
+					<span className={C.triggerLabel}>{t("title")}</span>
 				</button>
 			) : (
 				<button
 					type="button"
 					className={`${C.trigger} ${C.triggerRail}`}
-					title="定时任务"
+					title={t("title")}
 					aria-haspopup="dialog"
 					aria-expanded={open}
 					onClick={() => setOpen((current) => !current)}
@@ -499,12 +512,12 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 						if (event.target === event.currentTarget) setOpen(false);
 					}}
 				>
-					<div className={C.card} role="dialog" aria-label="定时任务">
+					<div className={C.card} role="dialog" aria-label={t("title")}>
 						<div className={C.header}>
 							<IconChecklistOutline14 size={16} />
-							<h2 className={C.title}>定时任务</h2>
+							<h2 className={C.title}>{t("title")}</h2>
 							<button type="button" className={C.btn} onClick={() => setOpen(false)}>
-								关闭
+								{t("close")}
 							</button>
 						</div>
 						<div className={C.body}>
@@ -517,7 +530,7 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 										style={{ marginLeft: 8 }}
 										onClick={() => setError("")}
 									>
-										忽略
+										{t("dismiss")}
 									</button>
 								</div>
 							)}
@@ -531,10 +544,11 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 										void refresh();
 									}}
 									onCancel={() => setView({ kind: "list" })}
+									t={t}
 								/>
 							)}
 							{view.kind === "history" && (
-								<RunHistory tasks={tasks} task={view.task} onBack={() => setView({ kind: "list" })} />
+								<RunHistory tasks={tasks} task={view.task} onBack={() => setView({ kind: "list" })} t={t} />
 							)}
 							{view.kind === "list" && (
 								<>
@@ -554,8 +568,7 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 									</div>
 									<div style={layout.row}>
 										<span className={C.note}>
-											项目：{workspacePath ?? "（未选择项目）"} · 每次运行会消耗默认模型的
-											token，并会在对话列表中生成一条记录
+											{t("list.projectNote", { path: workspacePath ?? t("list.noProject") })}
 										</span>
 										<span style={layout.spacer} />
 										<button
@@ -564,21 +577,21 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 											disabled={workspacePath === undefined}
 											onClick={() => setView({ kind: "form" })}
 										>
-											+ 新建任务
+											+ {t("list.newTask")}
 										</button>
 									</div>
-									{taskList.length === 0 && <div className={C.empty}>该项目还没有定时任务</div>}
+									{taskList.length === 0 && <div className={C.empty}>{t("list.empty")}</div>}
 									{taskList.map((task) => {
-										const badge = taskBadge(task);
+										const badge = taskBadge(t, task);
 										return (
 											<div key={task.id} className={C.row}>
 												<span className={`${C.badge} ${badge.cls}`}>{badge.text}</span>
 												<div style={{ flex: 1, minWidth: 0 }}>
 													<div className={C.name}>{task.name}</div>
 													<div className={C.meta}>
-														{scheduleText(task)}
+														{scheduleText(t, task)}
 														{" · "}
-														{nextRunText(task)}
+														{nextRunText(t, task)}
 													</div>
 												</div>
 												<button
@@ -586,21 +599,21 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 													className={C.btn}
 													disabled={busy}
 													onClick={() => runNow(task)}
-													title="立即运行一次（不影响原计划）"
+													title={t("list.runNowTitle")}
 												>
-													运行
+													{t("list.run")}
 												</button>
 												<button type="button" className={C.btn} onClick={() => setView({ kind: "form", task })}>
-													编辑
+													{t("list.edit")}
 												</button>
 												<button type="button" className={C.btn} onClick={() => setView({ kind: "history", task })}>
-													历史
+													{t("list.history")}
 												</button>
 												<button type="button" className={C.btn} onClick={() => toggle(task.id, !task.enabled)}>
-													{task.enabled ? "停用" : "启用"}
+													{task.enabled ? t("list.disable") : t("list.enable")}
 												</button>
 												<button type="button" className={`${C.btn} ${C.btnDanger}`} onClick={() => remove(task)}>
-													删除
+													{t("list.delete")}
 												</button>
 											</div>
 										);
@@ -609,10 +622,7 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 							)}
 						</div>
 						<div className={C.footer}>
-							<span className={C.note}>
-								定时任务仅在 DSH Web
-								进程运行期间触发；重启后到期的任务会补跑一次并标记「补跑」。运行会话会出现在对应项目的对话列表中。
-							</span>
+							<span className={C.note}>{t("footer.note")}</span>
 						</div>
 					</div>
 				</div>
