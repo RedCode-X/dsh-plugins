@@ -74,6 +74,14 @@ restart `dsh web` — the plugin has no HMR channel.
 | `maxConcurrentRuns` | `2`     | Maximum concurrently running agent sessions across all tasks.         |
 | `keepRunsPerTask`   | `20`    | Run-history records retained per task (oldest pruned beyond the cap). |
 
+## Troubleshooting
+
+Tool calls that fail with “Interrupted: interrupted” (underlying error
+`Cannot read properties of undefined (reading 'prepare')`) are almost always a
+duplicate `@deepseek-ai/dsh-tools` copy caused by declaring DSH packages in
+`dependencies` instead of `peerDependencies`. See
+[`docs/troubleshooting.md`](docs/troubleshooting.md) for the full write-up.
+
 ## Limitations
 
 - Schedules fire only while the web process is running (same posture as
