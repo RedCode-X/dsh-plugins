@@ -6,7 +6,8 @@
  * @module @opendsh/dsh-plugin-setting-mcp
  */
 
-import type { McpServerInput } from "./schemas.js";
+import type { EntryOptions } from "@deepseek-ai/cordis-plugin-loader";
+import { MCP_CLIENT_MODULE, type McpServerInput } from "./schemas.js";
 
 /** Build a clean mcp-client config for one editable server (transport-selected fields only). */
 export function toMcpConfig(server: McpServerInput): Record<string, unknown> {
@@ -31,4 +32,22 @@ export function toMcpConfig(server: McpServerInput): Record<string, unknown> {
 		url: server.url,
 		headers: server.headers ?? {},
 	};
+}
+
+/**
+ * Build one loader entry row for a server. `existingConfig` (the current
+ * entry's raw config) supplies a `reconnect` block the editor does not surface,
+ * so a save that touches a different server does not silently drop a live
+ * server's reconnect policy.
+ */
+export function toMcpEntryOptions(
+	server: McpServerInput,
+	existingConfig?: Record<string, unknown>,
+): EntryOptions {
+	const config = toMcpConfig(server);
+	const reconnect = existingConfig?.reconnect;
+	if (reconnect !== undefined) config.reconnect = reconnect;
+	const options: EntryOptions = { id: server.id, name: MCP_CLIENT_MODULE, config };
+	if (!server.enabled) options.disabled = true;
+	return options;
 }

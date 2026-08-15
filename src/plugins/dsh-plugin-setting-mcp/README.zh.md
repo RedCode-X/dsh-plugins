@@ -18,8 +18,9 @@ DSH Web 插件：**在设置面板中管理 MCP 服务**。可以查看、修改
 - **启用 / 停用** — 只切换条目的 `disabled` 标记，不触碰配置，停用后完整配置仍
   被保留。
 - **保存 → 热更新** — 所有修改先在本地暂存，**保存** 时对 loader 树做
-  reconcile（`create` / `update` / `remove`）并写回配置文件。每个操作只重启受
-  影响的 `dsh-mcp-client` 实例，与 harness HMR 的热切换行为一致。
+  reconcile（`create` / `update` / `remove`），并把服务集合写回 profile 的
+  `cordis.patch.yml`（持久化的 patch 层）。每个操作只重启受影响的
+  `dsh-mcp-client` 实例，与 harness HMR 的热切换行为一致。
 
 ## 架构
 
@@ -39,37 +40,43 @@ DSH Web 插件：**在设置面板中管理 MCP 服务**。可以查看、修改
 dsh plugin --profile web add @opendsh/dsh-plugin-setting-mcp
 ```
 
-## 与 `cordis.yml` 的对应关系
+## 与 `cordis.patch.yml` 的对应关系
 
-插件直接管理 `dsh-mcp-client` 条目。一个 stdio 服务等价于：
+插件管理 profile 的 `cordis.patch.yml`（用户 patch 层——**不是** `cordis.yml`，
+后者在每次启动时都会被启动器重置为空列表）中的 `dsh-mcp-client` 条目。一个
+stdio 服务等价于：
 
 ```yaml
-- id: mcp-github
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: github
-    transport: stdio
-    command: npx
-    args: ['-y', '@modelcontextprotocol/server-github']
-    env:
-      GITHUB_TOKEN: ...
+# cordis.patch.yml
+- insert:
+    - id: mcp-github
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: github
+        transport: stdio
+        command: npx
+        args: ['-y', '@modelcontextprotocol/server-github']
+        env:
+          GITHUB_TOKEN: ...
 ```
 
 一个 Streamable HTTP 服务等价于：
 
 ```yaml
-- id: mcp-web
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: web
-    transport: streamable-http
-    url: http://localhost:3000/mcp
-    headers:
-      Authorization: ...
+# cordis.patch.yml
+- insert:
+    - id: mcp-web
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: web
+        transport: streamable-http
+        url: http://localhost:3000/mcp
+        headers:
+          Authorization: ...
 ```
 
-模型看到的工具名保持服务命名空间前缀（`mcp__<服务名>__<工具名>`），与手写
-`cordis.yml` 条目完全一致。
+模型看到的工具名保持服务命名空间前缀（`mcp__<服务名>__<工具名>`），与手写条目
+完全一致。
 
 ## 开发
 
@@ -81,9 +88,9 @@ pnpm --filter @opendsh/dsh-plugin-setting-mcp test
 
 ## 已知限制
 
-- **编辑器不暴露 `reconnect`。** 启用/停用切换会保留已存储的 `reconnect` 配置；
-  但修改服务会重建传输配置，使 `reconnect` 回到 `dsh-mcp-client` 的默认值。
+- **编辑器不暴露 `reconnect`。** 启用/停用切换以及修改其他服务都会保留已存储的
+  `reconnect` 配置；但编辑器本身无法查看或修改它。
 - **高级 `reconnect` 字段以及未来的 MCP 能力**（resources、prompts）不在本面板
-  范围内，仍可直接在 `cordis.yml` 中配置。
+  范围内，仍可直接在 `cordis.patch.yml` 中配置。
 - **保存是 reconcile 而非事务。** 操作按顺序应用；若后面的条目失败（例如服务进程
   无法启动），前面的操作已生效，失败信息会在面板中提示。
