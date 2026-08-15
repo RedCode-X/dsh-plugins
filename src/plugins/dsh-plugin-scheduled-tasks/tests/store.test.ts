@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { TasksDomain } from "../src/domain.js";
 import { TasksStore } from "../src/store.js";
-import { type Task, TaskId, type TasksDomain } from "../src/types.js";
+import { type Task, TaskId } from "../src/types.js";
 
 // ── minimal table/domain fakes over plain Maps ─────────────────────────────
 
@@ -91,5 +92,88 @@ describe("TasksStore.finishRun", () => {
 
 		expect(store.get("task-1")).toBeUndefined();
 		expect(store.listRuns("task-1")).toHaveLength(0);
+	});
+});
+
+describe("TasksStore model override", () => {
+	it("persists an explicit model selection on create and trims its fields", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const task = await store.create({
+			projectPath: "/projects/demo",
+			name: "pinned",
+			prompt: "run with a pinned model",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: " deepseek-official ", model: " deepseek-chat " },
+		});
+		expect(task.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
+	});
+
+	it("keeps the model field absent when create omits it", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const task = await store.create({
+			projectPath: "/projects/demo",
+			name: "default",
+			prompt: "use the default model",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+		});
+		expect(task.model).toBeUndefined();
+	});
+
+	it("rejects an explicit model with an empty provider or model id", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		await expect(
+			store.create({
+				projectPath: "/projects/demo",
+				name: "bad",
+				prompt: "bad model",
+				kind: "at",
+				at: "2026-08-20T09:00:00Z",
+				model: { provider: "", model: "deepseek-chat" },
+			}),
+		).rejects.toMatchObject({ code: "invalid_model" });
+	});
+
+	it("replaces the model override on update", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const created = await store.create({
+			projectPath: "/projects/demo",
+			name: "pinned",
+			prompt: "run with a pinned model",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: "deepseek-official", model: "deepseek-chat" },
+		});
+		const updated = await store.update(created.id, { model: { provider: "openai", model: "gpt-4o" } });
+		expect(updated.model).toEqual({ provider: "openai", model: "gpt-4o" });
+	});
+
+	it("clears the model override back to the default on update with null", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const created = await store.create({
+			projectPath: "/projects/demo",
+			name: "pinned",
+			prompt: "run with a pinned model",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: "deepseek-official", model: "deepseek-chat" },
+		});
+		const updated = await store.update(created.id, { model: null });
+		expect(updated.model).toBeUndefined();
+	});
+
+	it("keeps the model override when an unrelated field is updated", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const created = await store.create({
+			projectPath: "/projects/demo",
+			name: "pinned",
+			prompt: "run with a pinned model",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: "deepseek-official", model: "deepseek-chat" },
+		});
+		const updated = await store.update(created.id, { enabled: false });
+		expect(updated.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
 	});
 });

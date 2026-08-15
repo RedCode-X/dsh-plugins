@@ -10,7 +10,14 @@
  */
 
 import { z } from "zod";
-import { createInputSchema, deleteResultSchema, runViewSchema, taskViewSchema, updateInputSchema } from "./schemas.js";
+import {
+	catalogResultSchema,
+	createInputSchema,
+	deleteResultSchema,
+	runViewSchema,
+	taskViewSchema,
+	updateInputSchema,
+} from "./schemas.js";
 
 const PKG = "@opendsh/dsh-plugin-scheduled-tasks";
 
@@ -50,30 +57,48 @@ export const TYPERT = {
 					{ name: "delete", kind: "method", signature: "(id: string): Promise<{ id: string; deleted: boolean }>" },
 					{ name: "runNow", kind: "method", signature: "(id: string): Promise<RunView>" },
 					{ name: "history", kind: "method", signature: "(id: string): RunView[]" },
+					{ name: "catalog", kind: "method", signature: "(): Promise<CatalogResult>" },
 				],
 				types: [
 					{ name: "TaskId", declaration: "export type TaskId = string;" },
 					{ name: "ProjectPath", declaration: "export type ProjectPath = string;" },
 					{ name: "DeleteResult", declaration: "export interface DeleteResult { id: string; deleted: boolean; }" },
 					{
+						name: "TaskModel",
+						declaration: "export interface TaskModel { provider: string; model: string; }",
+					},
+					{
 						name: "TaskView",
 						declaration:
-							"export interface TaskView { id: string; projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; scheduledAt: string; everySeconds?: number; cron?: string; timeZone?: string; enabled: boolean; state: 'active' | 'finished'; createdAt: string; updatedAt: string; lastRunAt?: string; lastRunId?: string; }",
+							"export interface TaskView { id: string; projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; scheduledAt: string; everySeconds?: number; cron?: string; timeZone?: string; model?: TaskModel; enabled: boolean; state: 'active' | 'finished'; createdAt: string; updatedAt: string; lastRunAt?: string; lastRunId?: string; }",
 					},
 					{
 						name: "RunView",
 						declaration:
-							"export interface RunView { id: string; taskId: string; projectPath: string; triggeredBy: 'schedule' | 'manual'; overdue: boolean; startedAt: string; finishedAt?: string; status: 'running' | 'completed' | 'failed'; output?: string; error?: string; sessionId?: string; }",
+							"export interface RunView { id: string; taskId: string; projectPath: string; triggeredBy: 'schedule' | 'manual'; overdue: boolean; startedAt: string; finishedAt?: string; status: 'running' | 'completed' | 'failed'; output?: string; error?: string; sessionId?: string; model?: TaskModel; }",
 					},
 					{
 						name: "CreateInput",
 						declaration:
-							"export interface CreateInput { projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; enabled?: boolean; }",
+							"export interface CreateInput { projectPath: string; name: string; prompt: string; kind: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; model?: TaskModel; enabled?: boolean; }",
 					},
 					{
 						name: "UpdateInput",
 						declaration:
-							"export interface UpdateInput { name?: string; prompt?: string; kind?: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; enabled?: boolean; }",
+							"export interface UpdateInput { name?: string; prompt?: string; kind?: 'at' | 'every' | 'cron'; at?: string | { date: string; time: string; time_zone: string }; everySeconds?: number; cron?: string; timeZone?: string; model?: TaskModel | null; enabled?: boolean; }",
+					},
+					{
+						name: "CatalogModel",
+						declaration: "export interface CatalogModel { id: string; name: string; description?: string; }",
+					},
+					{
+						name: "ModelCatalogGroup",
+						declaration: "export interface ModelCatalogGroup { id: string; name: string; models: CatalogModel[]; }",
+					},
+					{
+						name: "CatalogResult",
+						declaration:
+							"export interface CatalogResult { groups: ModelCatalogGroup[]; default: { provider: string; model: string } | null; }",
 					},
 				],
 			},
@@ -184,6 +209,15 @@ export const TYPERT = {
 				},
 			],
 			result: result("RunView[]", z.array(runViewSchema)),
+		},
+		{
+			id: `${PKG}#tasks/catalog`,
+			service: "tasks",
+			namespace: "tasks",
+			method: "catalog",
+			invocation: direct,
+			parameters: [],
+			result: result("CatalogResult", catalogResultSchema),
 		},
 	],
 };

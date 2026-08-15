@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { describeReason, summarizeRun } from "../src/executor.js";
+import { describeReason, resolveRunModel, summarizeRun } from "../src/executor.js";
+import type { Task } from "../src/types.js";
 
 /**
  * Real-world shape captured from a web-profile run: the agent loop starts its
@@ -73,5 +74,47 @@ describe("describeReason", () => {
 
 	it("renders missing reason as no-outcome", () => {
 		expect(describeReason(undefined)).toContain("no turn outcome");
+	});
+});
+
+describe("resolveRunModel", () => {
+	function makeTask(overrides: Partial<Task> = {}): Task {
+		return {
+			id: "task-1" as Task["id"],
+			projectPath: "/projects/demo",
+			name: "demo",
+			prompt: "do the thing",
+			kind: "at",
+			scheduledAt: "2026-08-14T09:00:00.000Z",
+			enabled: true,
+			state: "active",
+			createdAt: "2026-08-13T09:00:00.000Z",
+			updatedAt: "2026-08-13T09:00:00.000Z",
+			...overrides,
+		};
+	}
+
+	function makeCtx(services: Record<string, unknown>) {
+		return { get: (key: string) => services[key] } as unknown as import("@deepseek-ai/cordis").Context;
+	}
+
+	it("prefers the task's explicit override", () => {
+		const ctx = makeCtx({
+			agentDefaultModel: { currentSelection: () => ({ provider: "default-provider", model: "default-model" }) },
+		});
+		expect(
+			resolveRunModel(ctx, makeTask({ model: { provider: "deepseek-official", model: "deepseek-chat" } })),
+		).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
+	});
+
+	it("falls back to the deployment default selection", () => {
+		const ctx = makeCtx({
+			agentDefaultModel: { currentSelection: () => ({ provider: "deepseek-official", model: "deepseek-chat" }) },
+		});
+		expect(resolveRunModel(ctx, makeTask())).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
+	});
+
+	it("returns undefined when no default model service is mounted", () => {
+		expect(resolveRunModel(makeCtx({}), makeTask())).toBeUndefined();
 	});
 });

@@ -1,6 +1,6 @@
 {
   "name": "@opendsh/dsh-plugin-scheduled-tasks",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "DSH web plugin: per-project scheduled tasks with prompts, executed as headless agent sessions in the project directory, with durable run history",
   "type": "module",
   "license": "MIT",

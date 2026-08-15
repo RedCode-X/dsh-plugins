@@ -5,13 +5,13 @@
  *
  * @module @opendsh/dsh-plugin-scheduled-tasks
  */
+// Load the locale service declarations (module augmentation for Context.locale).
+import type {} from "@deepseek-ai/dsh-client-locale/client";
 import type { ClientContext } from "@deepseek-ai/dsh-client-runtime/client";
 // Load the sidebar slot declarations (module augmentation for the SlotMap).
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar/client";
-// Load the locale service declarations (module augmentation for Context.locale).
-import type {} from "@deepseek-ai/dsh-client-locale/client";
+import { en, type ScheduledTasksKey, zh } from "./locales.js";
 import type { TasksRemote } from "./remote.js";
-import { en, zh, type ScheduledTasksKey } from "./locales.js";
 import { injectStyles } from "./styles.js";
 import { TasksFooterAction, type TasksFooterActionProps } from "./TasksPanel.js";
 import { TYPERT_REMOTE } from "./typert-remote.js";

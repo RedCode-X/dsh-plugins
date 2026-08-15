@@ -89,6 +89,14 @@ const TASK_VIEW_SCHEMA = {
 		everySeconds: { type: "number" },
 		cron: { type: "string" },
 		timeZone: { type: "string" },
+		model: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				provider: { type: "string", required: true },
+				model: { type: "string", required: true },
+			},
+		},
 		enabled: { type: "boolean", required: true },
 		state: { type: "string", required: true },
 		createdAt: { type: "string", required: true },
@@ -142,6 +150,7 @@ export function buildCreateInput(args: {
 	every_seconds?: unknown;
 	cron?: unknown;
 	time_zone?: unknown;
+	model?: unknown;
 	enabled?: unknown;
 }): { input: TaskCreateInput } | { error: ToolError } {
 	if (typeof args.prompt !== "string" || args.prompt.trim().length === 0) {
@@ -172,6 +181,23 @@ export function buildCreateInput(args: {
 	if (typeof args.project_path !== "undefined" && typeof args.project_path !== "string") {
 		return { error: { code: "invalid_project", message: "project_path must be a string." } };
 	}
+	if (args.model !== undefined) {
+		if (
+			typeof args.model !== "object" ||
+			args.model === null ||
+			typeof (args.model as { provider?: unknown }).provider !== "string" ||
+			typeof (args.model as { model?: unknown }).model !== "string"
+		) {
+			return {
+				error: { code: "invalid_model", message: "model must be an object with string provider and model." },
+			};
+		}
+		const provider = (args.model as { provider: string }).provider.trim();
+		const model = (args.model as { model: string }).model.trim();
+		if (provider.length === 0 || model.length === 0) {
+			return { error: { code: "invalid_model", message: "model provider and model must be non-empty." } };
+		}
+	}
 	const prompt = args.prompt.trim();
 	return {
 		input: {
@@ -188,6 +214,14 @@ export function buildCreateInput(args: {
 			...(args.every_seconds !== undefined ? { everySeconds: args.every_seconds as number } : {}),
 			...(args.cron !== undefined ? { cron: (args.cron as string).trim() } : {}),
 			...(args.time_zone !== undefined ? { timeZone: args.time_zone as string } : {}),
+			...(args.model === undefined
+				? {}
+				: {
+						model: {
+							provider: (args.model as { provider: string }).provider.trim(),
+							model: (args.model as { model: string }).model.trim(),
+						},
+					}),
 			...(args.enabled === undefined ? {} : { enabled: args.enabled === true }),
 		},
 	};
@@ -227,6 +261,19 @@ export function registerTaskTools(store: TasksStore, scheduler: TaskScheduler, a
 						every_seconds: { type: "number", description: "Fixed-rate interval in seconds, at least 300." },
 						cron: { type: "string", description: "Cron expression (five/six/seven fields) evaluated in time_zone." },
 						time_zone: { type: "string", description: "IANA time zone (required with cron; also used by a local at)." },
+						model: {
+							type: "object",
+							additionalProperties: false,
+							description: "Optional provider/model selection the runs should use, overriding the deployment default.",
+							properties: {
+								provider: {
+									type: "string",
+									required: true,
+									description: "Registered provider route (e.g. deepseek-official).",
+								},
+								model: { type: "string", required: true, description: "Provider-owned model id." },
+							},
+						},
 						enabled: { type: "boolean", description: "Whether the scheduler may fire the task; defaults to true." },
 					},
 					output: {

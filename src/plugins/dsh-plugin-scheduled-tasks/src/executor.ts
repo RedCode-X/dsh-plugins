@@ -14,7 +14,7 @@ import { type AgentRegistry, installModelSelection } from "@deepseek-ai/dsh-agen
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import type { TasksStore } from "./store.js";
-import type { RunRecord, RunStatus, Task } from "./types.js";
+import type { RunRecord, RunStatus, Task, TaskModel } from "./types.js";
 
 /** Executor configuration derived from plugin config. */
 export interface TaskExecutorConfig {
@@ -22,6 +22,19 @@ export interface TaskExecutorConfig {
 	maxConcurrentRuns: number;
 	/** Hard bound on one agent turn before the run is marked failed. */
 	runTimeoutMs: number;
+}
+
+/**
+ * Resolve the effective model selection for one task run: the task's explicit
+ * override, or the deployment's current default selection when the task has
+ * none. Returns `undefined` only when neither source is available.
+ */
+export function resolveRunModel(ctx: Context, task: Task): TaskModel | undefined {
+	if (task.model !== undefined) return task.model;
+	const defaultModel = ctx.get("agentDefaultModel");
+	const selection = defaultModel?.currentSelection();
+	if (selection === undefined) return undefined;
+	return { provider: selection.provider, model: selection.model };
 }
 
 /** Turn outcome reason, closed-union subset used by the summary. */
@@ -167,6 +180,10 @@ export class TaskExecutor {
 	): Promise<RunRecord> {
 		await this.acquire();
 		try {
+			// Capture the effective selection once: the run record and the agent
+			// drive must agree, including for prestarted (run-now) runs whose
+			// record already carries the selection the scheduler resolved.
+			const runModel = prestarted?.model ?? resolveRunModel(this.ctx, task);
 			const run =
 				prestarted ??
 				(await this.store.beginRun({
@@ -174,11 +191,12 @@ export class TaskExecutor {
 					projectPath: task.projectPath,
 					triggeredBy: options.triggeredBy,
 					overdue: options.overdue,
+					...(runModel === undefined ? {} : { model: runModel }),
 				}));
 			let sessionId: string | undefined;
 			let outcome: { status: RunStatus; output?: string; error?: string };
 			try {
-				const { status, output, error, spawnedSessionId } = await this.driveAgent(task);
+				const { status, output, error, spawnedSessionId } = await this.driveAgent(task, runModel);
 				sessionId = spawnedSessionId;
 				outcome = { status, ...(output === undefined ? {} : { output }), ...(error === undefined ? {} : { error }) };
 			} catch (error) {
@@ -199,14 +217,18 @@ export class TaskExecutor {
 	/** Create the agent, drive one turn, and summarize; never throws for model failures. */
 	private async driveAgent(
 		task: Task,
+		runModel?: TaskModel,
 	): Promise<{ status: RunStatus; output?: string; error?: string; spawnedSessionId?: string }> {
 		const ctx = this.ctx;
 		const agents = ctx.get("agents");
-		const defaultModel = ctx.get("agentDefaultModel");
-		if (agents === undefined || defaultModel === undefined) {
-			return { status: "failed", error: "agents or agentDefaultModel service is unavailable." };
+		if (agents === undefined) {
+			return { status: "failed", error: "agents service is unavailable." };
 		}
-		const selection = defaultModel.currentSelection();
+		// The run's explicit selection wins; otherwise fall back to the default.
+		const selection = runModel ?? ctx.get("agentDefaultModel")?.currentSelection();
+		if (selection === undefined) {
+			return { status: "failed", error: "no model selection is available for this run." };
+		}
 		const sessionId = SessionId(`scheduled-run-${randomUUID()}`);
 		const meta: { cwd: string; agentPreset?: string } = { cwd: task.projectPath };
 		let handle: Awaited<ReturnType<AgentRegistry["create"]>> | undefined;

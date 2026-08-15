@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import type { Context } from "@deepseek-ai/cordis";
 import type { Domain, KvTable } from "@deepseek-ai/dsh-storage-domain";
+import type { TasksDomain } from "./domain.js";
 import {
 	canonicalizeTimeZone,
 	resolveAtTarget,
@@ -18,7 +19,7 @@ import {
 	validateCron,
 	validateEverySeconds,
 } from "./time.js";
-import { RunId, type RunRecord, type RunStatus, type Task, TaskId, type TasksDomain } from "./types.js";
+import { RunId, type RunRecord, type RunStatus, type Task, TaskId, type TaskModel } from "./types.js";
 
 /** Validation failure with a stable code, surfaced to the UI. */
 export class TasksInputError extends Error {
@@ -57,6 +58,8 @@ export interface TaskCreateInput {
 	cron?: string;
 	/** IANA time zone the cron expression is evaluated in; required when `kind` is `cron`. */
 	timeZone?: string;
+	/** Explicit provider/model override for runs; absent means the deployment default. */
+	model?: TaskModel;
 	enabled?: boolean;
 }
 
@@ -72,6 +75,8 @@ export interface TaskUpdateInput {
 	everySeconds?: number;
 	cron?: string;
 	timeZone?: string;
+	/** Set to replace the override, or `null` to clear it back to the default. */
+	model?: TaskModel | null;
 	enabled?: boolean;
 }
 
@@ -107,6 +112,15 @@ function normalizeText(value: string, field: "name" | "prompt", maxLength: numbe
 	if (trimmed.length > maxLength)
 		throw new TasksInputError("invalid_text", `${field} must be at most ${maxLength} characters.`);
 	return trimmed;
+}
+
+/** Validate one explicit model override at the store boundary. */
+function normalizeModel(value: TaskModel): TaskModel {
+	const provider = value.provider.trim();
+	const model = value.model.trim();
+	if (provider.length === 0 || model.length === 0)
+		throw new TasksInputError("invalid_model", "model must carry a non-empty provider route and a non-empty model id.");
+	return { provider, model };
 }
 
 /** Compute the durable target for a task input. */
@@ -181,6 +195,7 @@ export class TasksStore {
 			...(target.everySeconds === undefined ? {} : { everySeconds: target.everySeconds }),
 			...(target.cron === undefined ? {} : { cron: target.cron }),
 			...(target.timeZone === undefined ? {} : { timeZone: target.timeZone }),
+			...(input.model === undefined ? {} : { model: normalizeModel(input.model) }),
 			enabled: input.enabled ?? true,
 			state: "active",
 			createdAt,
@@ -198,8 +213,20 @@ export class TasksStore {
 		if (patch.name !== undefined) next.name = normalizeText(patch.name, "name", 200);
 		if (patch.prompt !== undefined) next.prompt = normalizeText(patch.prompt, "prompt", 20_000);
 		if (patch.enabled !== undefined) next.enabled = patch.enabled;
+		if (patch.model !== undefined) {
+			if (patch.model === null) delete next.model;
+			else next.model = normalizeModel(patch.model);
+		}
 		if (patch.kind !== undefined) {
-			const target = resolveTaskTarget({ ...existing, ...patch, kind: patch.kind }, Date.now());
+			const target = resolveTaskTarget(
+				{
+					...existing,
+					...patch,
+					model: patch.model === null ? undefined : patch.model,
+					kind: patch.kind,
+				},
+				Date.now(),
+			);
 			next.kind = target.kind;
 			next.scheduledAt = target.scheduledAt;
 			if (target.everySeconds === undefined) delete next.everySeconds;

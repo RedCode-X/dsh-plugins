@@ -15,7 +15,7 @@ import type { WorkspaceListState } from "@deepseek-ai/dsh-client-runtime/client"
 import { IconChecklistOutline14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { SnapshotSelectorHook, TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CreateInput, RunView, TaskView, UpdateInput } from "../schemas.js";
+import type { CatalogResult, CreateInput, RunView, TaskView, UpdateInput } from "../schemas.js";
 import type { RpcResult, TasksRemote } from "./remote.js";
 import { C } from "./styles.js";
 
@@ -164,6 +164,8 @@ function RunHistory({ tasks, task, onBack, t }: RunHistoryProps) {
 									: run.overdue
 										? ` · ${t("history.trigger.overdue")}`
 										: ` · ${t("history.trigger.scheduled")}`}
+								{run.model !== undefined &&
+									` · ${t("model.used", { provider: run.model.provider, model: run.model.model })}`}
 							</div>
 							{expanded === run.id && (
 								<div style={{ marginTop: 4 }}>
@@ -202,6 +204,36 @@ interface TaskFormProps {
 	t: PanelTranslate;
 }
 
+/** One selectable model option (provider route + provider-owned model id). */
+interface ModelOption {
+	/** Stable select value: provider and model joined by a separator that cannot appear in either. */
+	key: string;
+	provider: string;
+	model: string;
+	label: string;
+	/** Provider display name, used as the optgroup label. */
+	group: string;
+}
+
+/** Join a provider/model pair into a select value. */
+function modelKeyOf(provider: string, model: string): string {
+	return `${provider}\u0000${model}`;
+}
+
+/** Group a flat option list into optgroup runs, preserving provider order. */
+function groupModelOptions(options: ModelOption[]): { label: string; options: ModelOption[] }[] {
+	const groups: { label: string; options: ModelOption[] }[] = [];
+	for (const option of options) {
+		let group = groups[groups.length - 1];
+		if (group === undefined || group.label !== option.group) {
+			group = { label: option.group, options: [] };
+			groups.push(group);
+		}
+		group.options.push(option);
+	}
+	return groups;
+}
+
 function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFormProps) {
 	const [name, setName] = useState(initial?.name ?? "");
 	const [prompt, setPrompt] = useState(initial?.prompt ?? "");
@@ -222,8 +254,66 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 	const [cron, setCron] = useState(initial?.kind === "cron" ? (initial.cron ?? "") : "");
 	const [everyMinutes, setEveryMinutes] = useState(() => String((initial?.everySeconds ?? 1800) / 60));
 	const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+	// Model selection: "" means "use the deployment default".
+	const [modelKey, setModelKey] = useState(() =>
+		initial?.model === undefined ? "" : modelKeyOf(initial.model.provider, initial.model.model),
+	);
+	const [catalog, setCatalog] = useState<CatalogResult | undefined>();
+	const [catalogError, setCatalogError] = useState("");
+	const [catalogBusy, setCatalogBusy] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
+
+	/** Load the grouped provider catalog when the form mounts. */
+	const loadCatalog = useCallback(async () => {
+		setCatalogBusy(true);
+		setCatalogError("");
+		const result = await tasks.catalog();
+		if (result.ok) setCatalog(result.value);
+		else setCatalogError(errorText(result));
+		setCatalogBusy(false);
+	}, [tasks]);
+
+	useEffect(() => {
+		void loadCatalog();
+	}, [loadCatalog]);
+
+	/** Flat option list; a stored selection missing from the catalog is kept as a fallback. */
+	const modelOptions = useMemo<ModelOption[]>(() => {
+		const options: ModelOption[] = [];
+		for (const group of catalog?.groups ?? []) {
+			for (const model of group.models) {
+				options.push({
+					key: modelKeyOf(group.id, model.id),
+					provider: group.id,
+					model: model.id,
+					label: model.name,
+					group: group.name,
+				});
+			}
+		}
+		const stored = initial?.model;
+		if (
+			stored !== undefined &&
+			!options.some((option) => option.provider === stored.provider && option.model === stored.model)
+		) {
+			options.push({
+				key: modelKeyOf(stored.provider, stored.model),
+				provider: stored.provider,
+				model: stored.model,
+				label: `${stored.provider} / ${stored.model}`,
+				group: t("form.modelOther"),
+			});
+		}
+		return options;
+	}, [catalog, initial?.model, t]);
+
+	const groupedModelOptions = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
+
+	const defaultLabel =
+		catalog === undefined || catalog.default === null
+			? t("form.modelDefault")
+			: t("form.modelDefaultWith", { provider: catalog.default.provider, model: catalog.default.model });
 
 	const submit = async () => {
 		if (name.trim() === "") {
@@ -258,13 +348,23 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 			}
 			input = { ...base, everySeconds: minutes * 60 };
 		}
+		if (modelKey !== "") {
+			const selected = modelOptions.find((option) => option.key === modelKey);
+			if (selected !== undefined) {
+				input = { ...input, model: { provider: selected.provider, model: selected.model } };
+			}
+		}
 		setBusy(true);
 		setError("");
 		try {
 			const result =
 				initial === undefined
 					? await tasks.create(input)
-					: await tasks.update(initial.id, input as unknown as UpdateInput);
+					: await tasks.update(
+							initial.id,
+							// An empty picker clears a stored override back to the default.
+							{ ...input, ...(modelKey === "" ? { model: null } : {}) } as unknown as UpdateInput,
+						);
 			if (result.ok) {
 				onSaved();
 			} else {
@@ -371,8 +471,37 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 					/>
 				</div>
 			)}
+			<div style={layout.field}>
+				<div className={C.label}>{t("form.model")}</div>
+				{catalogError !== "" && (
+					<div style={layout.row}>
+						<span className={C.error}>{catalogError}</span>
+						<button type="button" className={C.btn} disabled={catalogBusy} onClick={() => void loadCatalog()}>
+							{t("form.modelReload")}
+						</button>
+					</div>
+				)}
+				{catalogError === "" && groupedModelOptions.length === 0 && (
+					<div className={C.meta}>{catalogBusy ? t("form.modelLoading") : t("form.modelEmpty")}</div>
+				)}
+				{groupedModelOptions.length > 0 && (
+					<select className={C.select} value={modelKey} onChange={(event) => setModelKey(event.target.value)}>
+						<option value="">{defaultLabel}</option>
+						{groupedModelOptions.map((group) => (
+							<optgroup key={group.label} label={group.label}>
+								{group.options.map((option) => (
+									<option key={option.key} value={option.key}>
+										{option.label}
+									</option>
+								))}
+							</optgroup>
+						))}
+					</select>
+				)}
+			</div>
 			<label style={{ cursor: "pointer", ...layout.row, gap: 6 }}>
-				<input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> {t("form.enabled")}
+				<input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />{" "}
+				{t("form.enabled")}
 			</label>
 			{error !== "" && <div className={C.error}>{error}</div>}
 			<div style={layout.row}>
@@ -592,6 +721,8 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 														{scheduleText(t, task)}
 														{" · "}
 														{nextRunText(t, task)}
+														{task.model !== undefined &&
+															` · ${t("model.used", { provider: task.model.provider, model: task.model.model })}`}
 													</div>
 												</div>
 												<button

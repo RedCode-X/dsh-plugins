@@ -8,7 +8,6 @@
  *
  * @module @opendsh/dsh-plugin-scheduled-tasks
  */
-import { defineDomain, domainTable } from "@deepseek-ai/dsh-storage-domain";
 import { z } from "zod";
 
 /** Branded task identifier. */
@@ -32,6 +31,15 @@ const runIdSchema = z.string().regex(/^run-[A-Za-z0-9-]+$/);
 /** Canonical four-digit-year RFC 3339 UTC instant (e.g. `2026-08-14T09:30:00.000Z`). */
 export const instantSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 
+/** One explicit provider/model selection, mirroring the DSH model directory. */
+export const taskModelSchema = z.object({
+	/** Registered provider route (e.g. `deepseek-official`). */
+	provider: z.string().min(1).max(200),
+	/** Provider-owned model id (e.g. `deepseek-chat`). */
+	model: z.string().min(1).max(200),
+});
+export type TaskModel = z.infer<typeof taskModelSchema>;
+
 /** One durable scheduled-task record. */
 export const taskSchema = z.object({
 	id: taskIdSchema,
@@ -51,6 +59,8 @@ export const taskSchema = z.object({
 	cron: z.string().min(1).max(200).optional(),
 	/** IANA time zone the cron expression is evaluated in; present only when `kind` is `cron`. */
 	timeZone: z.string().min(1).max(100).optional(),
+	/** Explicit model override; runs use the deployment default selection when absent. */
+	model: taskModelSchema.optional(),
 	/** Whether the scheduler may dispatch this task. */
 	enabled: z.boolean(),
 	/** `active` tasks are schedulable; `finished` one-shots no longer run. */
@@ -84,18 +94,7 @@ export const runSchema = z.object({
 	error: z.string().max(4000).optional(),
 	/** Session id of the spawned agent run (hidden from the session list via archiving). */
 	sessionId: z.string().optional(),
+	/** Effective model selection this run was driven with (task override or the default at dispatch). */
+	model: taskModelSchema.optional(),
 });
 export type RunRecord = z.infer<typeof runSchema>;
-
-/** The `scheduled_tasks` domain declaration. */
-export const tasksDomain = defineDomain({
-	name: "scheduled_tasks",
-	version: 1,
-	tables: {
-		tasks: domainTable<TaskId, Task>(taskSchema),
-		runs: domainTable<RunId, RunRecord>(runSchema),
-	},
-});
-
-/** Type of the opened `scheduled-tasks` domain. */
-export type TasksDomain = typeof tasksDomain;

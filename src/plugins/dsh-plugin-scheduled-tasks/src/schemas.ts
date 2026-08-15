@@ -7,6 +7,7 @@
  * @module @opendsh/dsh-plugin-scheduled-tasks
  */
 import { z } from "zod";
+import { taskModelSchema } from "./types.js";
 
 /** JSON-safe projection of one task record (undefined fields stripped). */
 export const taskViewSchema = z.object({
@@ -19,6 +20,7 @@ export const taskViewSchema = z.object({
 	everySeconds: z.number().optional(),
 	cron: z.string().optional(),
 	timeZone: z.string().optional(),
+	model: taskModelSchema.optional(),
 	enabled: z.boolean(),
 	state: z.enum(["active", "finished"]),
 	createdAt: z.string(),
@@ -40,6 +42,7 @@ export const runViewSchema = z.object({
 	output: z.string().optional(),
 	error: z.string().optional(),
 	sessionId: z.string().optional(),
+	model: taskModelSchema.optional(),
 });
 
 /** Local calendar `at` selector (snake_case, mirroring dsh-schedule). */
@@ -62,10 +65,11 @@ export const createInputSchema = z.object({
 	everySeconds: z.number().optional(),
 	cron: z.string().optional(),
 	timeZone: z.string().optional(),
+	model: taskModelSchema.optional(),
 	enabled: z.boolean().optional(),
 });
 
-/** Wire form of `tasks/update` patch. */
+/** Wire form of `tasks/update` patch. `model: null` clears the per-task override. */
 export const updateInputSchema = z.object({
 	name: z.string().optional(),
 	prompt: z.string().optional(),
@@ -74,6 +78,7 @@ export const updateInputSchema = z.object({
 	everySeconds: z.number().optional(),
 	cron: z.string().optional(),
 	timeZone: z.string().optional(),
+	model: z.union([taskModelSchema, z.null()]).optional(),
 	enabled: z.boolean().optional(),
 });
 
@@ -83,7 +88,36 @@ export const deleteResultSchema = z.object({
 	deleted: z.boolean(),
 });
 
+/** One model advertised by one provider group in `tasks/catalog`. */
+export const catalogModelSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+});
+
+/** One provider group with the models it advertises (advisory catalog). */
+export const modelCatalogGroupSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	models: z.array(catalogModelSchema),
+});
+
+/** Wire result of `tasks/catalog`: every registered provider, grouped by provider. */
+export const catalogResultSchema = z.object({
+	/** Provider groups in registration order. */
+	groups: z.array(modelCatalogGroupSchema),
+	/** Current default selection when the deployment exposes one. */
+	default: z
+		.object({
+			provider: z.string(),
+			model: z.string(),
+		})
+		.nullable(),
+});
+
 export type TaskView = z.infer<typeof taskViewSchema>;
 export type RunView = z.infer<typeof runViewSchema>;
 export type CreateInput = z.infer<typeof createInputSchema>;
 export type UpdateInput = z.infer<typeof updateInputSchema>;
+export type CatalogResult = z.infer<typeof catalogResultSchema>;
+export type ModelCatalogGroup = z.infer<typeof modelCatalogGroupSchema>;

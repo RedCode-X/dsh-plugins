@@ -11,12 +11,12 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
+import { tasksDomain } from "./domain.js";
 import { TaskExecutor } from "./executor.js";
 import { TasksRuntime } from "./runtime.js";
 import { TaskScheduler } from "./scheduler.js";
 import { TasksStore } from "./store.js";
 import { registerTaskTools } from "./tools.js";
-import { tasksDomain } from "./types.js";
 
 /** Stable cordis plugin name. */
 export const name = "scheduled-tasks";

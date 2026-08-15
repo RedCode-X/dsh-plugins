@@ -9,7 +9,7 @@
  * @module @opendsh/dsh-plugin-scheduled-tasks
  */
 import type { Context } from "@deepseek-ai/cordis";
-import type { TaskExecutor } from "./executor.js";
+import { resolveRunModel, type TaskExecutor } from "./executor.js";
 import { TaskNotFoundError, type TasksStore } from "./store.js";
 import { resolveCronOccurrences, resolveEveryOccurrence } from "./time.js";
 import type { RunRecord, Task } from "./types.js";
@@ -199,11 +199,13 @@ export class TaskScheduler {
 		});
 		this.inFlight.set(task.id, reserved);
 		try {
+			const runModel = resolveRunModel(this.ctx, task);
 			const run = await this.store.beginRun({
 				taskId: task.id,
 				projectPath: task.projectPath,
 				triggeredBy: "manual",
 				overdue: false,
+				...(runModel === undefined ? {} : { model: runModel }),
 			});
 			const promise = this.executor.run(task, { triggeredBy: "manual", overdue: false }, run);
 			this.inFlight.set(task.id, promise);

@@ -8,7 +8,14 @@
 
 import type { TypertRemoteContribution } from "@deepseek-ai/dsh-typert-protocol";
 import { z } from "zod";
-import { createInputSchema, deleteResultSchema, runViewSchema, taskViewSchema, updateInputSchema } from "../schemas.js";
+import {
+	catalogResultSchema,
+	createInputSchema,
+	deleteResultSchema,
+	runViewSchema,
+	taskViewSchema,
+	updateInputSchema,
+} from "../schemas.js";
 
 const PKG = "@opendsh/dsh-plugin-scheduled-tasks";
 
@@ -136,6 +143,15 @@ export const TYPERT_REMOTE: TypertRemoteContribution = {
 				},
 			],
 			result: result("RunView[]", z.array(runViewSchema)),
+		},
+		{
+			id: `${PKG}#tasks/catalog`,
+			service: "tasks",
+			namespace: "tasks",
+			method: "catalog",
+			invocation: direct,
+			parameters: [],
+			result: result("CatalogResult", catalogResultSchema),
 		},
 	],
 };

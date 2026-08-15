@@ -82,8 +82,11 @@ class FakeExecutor {
 	}
 }
 
-function makeCtx() {
-	return { logger: { warn: () => {} } } as unknown as import("@deepseek-ai/cordis").Context;
+function makeCtx(services: Record<string, unknown> = {}) {
+	return {
+		logger: { warn: () => {} },
+		get: (key: string) => services[key],
+	} as unknown as import("@deepseek-ai/cordis").Context;
 }
 
 // ── tests ──────────────────────────────────────────────────────────────────
@@ -214,5 +217,49 @@ describe("TaskScheduler", () => {
 		);
 		await expect(scheduler.runNow("task-nope")).rejects.toThrow(/does not exist/);
 		await scheduler.dispose();
+	});
+
+	it("runNow records the task's pinned model on the run record", async () => {
+		const store = new FakeStore();
+		const task = makeTask({
+			id: "task-1",
+			scheduledAt: "2026-08-14T10:00:00.000Z",
+			model: { provider: "deepseek-official", model: "deepseek-chat" },
+		});
+		store.tasks.set(task.id, task);
+		const executor = new FakeExecutor();
+		const scheduler = new TaskScheduler(
+			makeCtx(),
+			store as unknown as TasksStore,
+			executor as unknown as TaskExecutor,
+			{
+				now: () => NOW,
+			},
+		);
+		const run = await scheduler.runNow("task-1");
+		await scheduler.flush();
+		await scheduler.dispose();
+
+		expect(run.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
+	});
+
+	it("runNow falls back to the default selection when the task has no override", async () => {
+		const store = new FakeStore();
+		const task = makeTask({ id: "task-1", scheduledAt: "2026-08-14T10:00:00.000Z" });
+		store.tasks.set(task.id, task);
+		const executor = new FakeExecutor();
+		const scheduler = new TaskScheduler(
+			makeCtx({ agentDefaultModel: { currentSelection: () => ({ provider: "default-p", model: "default-m" }) } }),
+			store as unknown as TasksStore,
+			executor as unknown as TaskExecutor,
+			{
+				now: () => NOW,
+			},
+		);
+		const run = await scheduler.runNow("task-1");
+		await scheduler.flush();
+		await scheduler.dispose();
+
+		expect(run.model).toEqual({ provider: "default-p", model: "default-m" });
 	});
 });

@@ -24,6 +24,13 @@ records the outcome as durable run history.
   same drive pattern as `dsh --profile headless`). The run session appears
   in the project's conversation list with a pinned title (`⏰ <task name>`) and
   stays resumable; the final assistant text is also captured into the run record.
+- **Per-task model override** — each task may pin an explicit
+  provider/model selection, picked from the grouped provider catalog in the
+  panel (the same groups the DSH model selector renders, with the current
+  default selection shown as the first option). Runs then use that model
+  instead of the deployment default; the effective model of every run is
+  recorded in its history. Leaving the picker empty follows the default
+  selection.
 - **Run history** — status (`running` / `completed` / `failed`), start/finish
   times, output (truncated at 20 KB), error messages; newest first, capped at
   20 records per task (configurable).
@@ -86,7 +93,7 @@ duplicate `@deepseek-ai/dsh-tools` copy caused by declaring DSH packages in
 
 - Schedules fire only while the web process is running (same posture as
   `dsh-schedule`); there is no external wake-up when the process is down.
-- Each run consumes model tokens with the current default model — the panel
-  says so explicitly.
+- Each run consumes model tokens with the task's pinned model, or the current
+  default model when the task pins none — the panel says so explicitly.
 - Run history is refreshed by polling while the panel is open (10 s interval);
   push updates are deferred work.

@@ -9,8 +9,9 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import { Remote, TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
+import { buildModelCatalog } from "./catalog.js";
 import type { TaskScheduler } from "./scheduler.js";
-import type { CreateInput, RunView, TaskView, UpdateInput } from "./schemas.js";
+import type { CatalogResult, CreateInput, RunView, TaskView, UpdateInput } from "./schemas.js";
 import { TaskNotFoundError, TasksInputError, type TasksStore } from "./store.js";
 import type { RunRecord, Task } from "./types.js";
 
@@ -46,6 +47,17 @@ export class TasksRuntime extends TypertRemoteService {
 		private readonly scheduler: TaskScheduler,
 	) {
 		super(ctx, "tasks");
+	}
+
+	/**
+	 * Grouped model catalog over every registered provider route (the same
+	 * groups the DSH model selector renders), plus the deployment's current
+	 * default selection when one is exposed. Providers whose catalog lookup
+	 * fails are dropped from the groups, never failing the request.
+	 */
+	@Remote
+	async catalog(): Promise<CatalogResult> {
+		return buildModelCatalog(this.ctx);
 	}
 
 	/** List tasks, optionally scoped to one project directory. */

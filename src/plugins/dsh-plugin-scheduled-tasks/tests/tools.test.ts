@@ -57,4 +57,36 @@ describe("buildCreateInput", () => {
 			expect(built.input.enabled).toBe(false);
 		}
 	});
+
+	it("passes through an explicit model selection", () => {
+		const built = buildCreateInput({
+			prompt: "x",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: "deepseek-official", model: "deepseek-chat" },
+		});
+		if ("input" in built) {
+			expect(built.input.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
+		}
+	});
+
+	it("omits the model field when the argument is absent", () => {
+		const built = buildCreateInput({ prompt: "x", at: "2026-08-20T09:00:00Z" });
+		if ("input" in built) expect(built.input.model).toBeUndefined();
+	});
+
+	it("rejects a malformed model argument", () => {
+		const built = buildCreateInput({ prompt: "x", at: "2026-08-20T09:00:00Z", model: { provider: "p" } });
+		expect("error" in built).toBe(true);
+		if ("error" in built) expect(built.error.code).toBe("invalid_model");
+	});
+
+	it("rejects an empty provider or model id", () => {
+		const built = buildCreateInput({
+			prompt: "x",
+			at: "2026-08-20T09:00:00Z",
+			model: { provider: " ", model: "deepseek-chat" },
+		});
+		expect("error" in built).toBe(true);
+		if ("error" in built) expect(built.error.code).toBe("invalid_model");
+	});
 });
