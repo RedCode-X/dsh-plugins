@@ -76,10 +76,12 @@ export const zh = {
 	"form.error.cronRequired": "请填写 Cron 表达式。",
 	"form.error.intervalTooShort": "周期必须不少于 5 分钟。",
 	// List view.
-	"list.noProject": "（未选择项目）",
+	"list.allNote":
+		"全部 {count} 个定时任务 · 每次运行会消耗所选模型（默认或任务指定）的 token，并会在对话列表中生成一条记录",
 	"list.projectNote": "项目：{path} · 每次运行会消耗所选模型（默认或任务指定）的 token，并会在对话列表中生成一条记录",
 	"list.newTask": "新建任务",
 	"list.empty": "该项目还没有定时任务",
+	"list.emptyAll": "还没有任何定时任务",
 	"list.run": "运行",
 	"list.edit": "编辑",
 	"list.history": "历史",
@@ -88,6 +90,9 @@ export const zh = {
 	"list.delete": "删除",
 	"list.runNowTitle": "立即运行一次（不影响原计划）",
 	"list.confirmDelete": "确定删除任务「{name}」及其运行历史吗？",
+	// Project filter tabs.
+	"tabs.label": "按项目筛选",
+	"tabs.all": "全部",
 	// Dialog chrome.
 	close: "关闭",
 	dismiss: "忽略",
@@ -160,11 +165,13 @@ export const en: Record<ScheduledTasksKey, string> = {
 	"form.error.promptRequired": "Please enter a prompt.",
 	"form.error.cronRequired": "Please enter a Cron expression.",
 	"form.error.intervalTooShort": "The interval must be at least 5 minutes.",
-	"list.noProject": "(no project selected)",
+	"list.allNote":
+		"All {count} scheduled tasks · Each run consumes tokens from the selected model (default or task-specific) and adds a record to the conversation list",
 	"list.projectNote":
 		"Project: {path} · Each run consumes tokens from the selected model (default or task-specific) and adds a record to the conversation list",
 	"list.newTask": "New task",
 	"list.empty": "This project has no scheduled tasks yet",
+	"list.emptyAll": "No scheduled tasks yet",
 	"list.run": "Run",
 	"list.edit": "Edit",
 	"list.history": "History",
@@ -173,6 +180,8 @@ export const en: Record<ScheduledTasksKey, string> = {
 	"list.delete": "Delete",
 	"list.runNowTitle": "Run once now (does not change the schedule)",
 	"list.confirmDelete": 'Delete task "{name}" and its run history?',
+	"tabs.label": "Filter by project",
+	"tabs.all": "All",
 	close: "Close",
 	dismiss: "Dismiss",
 	"footer.note":

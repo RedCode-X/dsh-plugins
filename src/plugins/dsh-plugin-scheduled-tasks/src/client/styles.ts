@@ -39,6 +39,10 @@ export const C = {
 	error: "dshst-error",
 	empty: "dshst-empty",
 	output: "dshst-output",
+	tabs: "dshst-tabs",
+	tab: "dshst-tab",
+	tabActive: "dshst-tab-active",
+	tabCount: "dshst-tab-count",
 } as const;
 
 const css = `
@@ -73,6 +77,14 @@ const css = `
 .dshst-error{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-interactive-bg-hover-danger);border-radius:8px;padding:6px 10px;font-size:11px;line-height:16px}
 .dshst-empty{color:var(--dsw-alias-label-tertiary);font-size:12px;text-align:center;padding:24px 12px}
 .dshst-output{color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;white-space:pre-wrap;word-break:break-word;margin:4px 0 0;font-family:var(--dsh-font-mono,monospace)}
+.dshst-tabs{box-sizing:border-box;display:flex;gap:6px;flex:none;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
+.dshst-tabs::-webkit-scrollbar{display:none}
+.dshst-tab{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);border-radius:999px;cursor:pointer;flex:none;align-items:center;gap:4px;padding:2px 10px;font-family:inherit;font-size:12px;line-height:20px;display:inline-flex;white-space:nowrap}
+.dshst-tab:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dshst-tab-active{border-color:transparent;background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-button-primary-dimmed)}
+.dshst-tab-active:hover{background:var(--dsw-alias-button-primary-hover)}
+.dshst-tab-count{opacity:.62}
+.dshst-tab-active .dshst-tab-count{opacity:.78}
 `;
 
 /** Inject the stylesheet once (idempotent), mirroring the official CSS-module mechanism. */

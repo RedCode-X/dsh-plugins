@@ -14,7 +14,7 @@
 import type { WorkspaceListState } from "@deepseek-ai/dsh-client-runtime/client";
 import { IconChecklistOutline14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { SnapshotSelectorHook, TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogResult, CreateInput, RunView, TaskView, UpdateInput } from "../schemas.js";
 import type { RpcResult, TasksRemote } from "./remote.js";
 import { C } from "./styles.js";
@@ -525,29 +525,56 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 	const workspaceItems = props.useWorkspaces((state) => state.items);
 	const recentWorkspaceId = props.useWorkspaces((state) => state.recentWorkspaceId);
 	const [open, setOpen] = useState(false);
-	const [projectPath, setProjectPath] = useState<string | undefined>();
+	// Active filter tab: `undefined` selects the All tab (every project).
+	const [selectedPath, setSelectedPath] = useState<string | undefined>();
 	const [taskList, setTaskList] = useState<TaskView[]>([]);
 	const [view, setView] = useState<View>({ kind: "list" });
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
+	const tabsRef = useRef<HTMLDivElement>(null);
 
-	const workspacePath = useMemo(() => {
-		if (projectPath !== undefined) return projectPath;
+	// Fallback project used as the create target while the All tab is active.
+	const fallbackPath = useMemo(() => {
 		const recent = workspaceItems.find((item) => item.workspaceId === recentWorkspaceId);
 		return recent?.path ?? workspaceItems[0]?.path;
-	}, [projectPath, workspaceItems, recentWorkspaceId]);
+	}, [workspaceItems, recentWorkspaceId]);
 
-	// Keep the selected path in sync when the workspace list settles.
-	useEffect(() => {
-		if (projectPath === undefined && workspacePath !== undefined) setProjectPath(workspacePath);
-	}, [projectPath, workspacePath]);
-
+	// One remote call returns every task; the per-project tabs and counts are
+	// derived client-side so the tab badges stay in sync with a single fetch.
+	// The argument is passed explicitly (even though it is optional) because
+	// the typert client enforces the declared parameter count on the wire.
 	const refresh = useCallback(async () => {
-		if (workspacePath === undefined) return;
-		const result = await tasks.list(workspacePath);
+		const result = await tasks.list(undefined);
 		if (result.ok) setTaskList(result.value);
 		else setError(errorText(result));
-	}, [tasks, workspacePath]);
+	}, [tasks]);
+
+	// Per-project task counts (projectPath → count) backing the tab badges.
+	const counts = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const task of taskList) {
+			map.set(task.projectPath, (map.get(task.projectPath) ?? 0) + 1);
+		}
+		return map;
+	}, [taskList]);
+
+	// Tasks shown for the active tab: everything on All, else one project.
+	const visibleTasks = useMemo(
+		() => (selectedPath === undefined ? taskList : taskList.filter((task) => task.projectPath === selectedPath)),
+		[taskList, selectedPath],
+	);
+
+	// Create target: the active project tab, or the fallback project on All.
+	const newTaskPath = selectedPath ?? fallbackPath;
+
+	// Drop the selection back to All when its project leaves the registry or
+	// its task count falls to zero (empty-project tabs are hidden).
+	useEffect(() => {
+		if (selectedPath === undefined) return;
+		const stillListed = workspaceItems.some((item) => item.path === selectedPath);
+		const stillCounted = (counts.get(selectedPath) ?? 0) > 0;
+		if (!stillListed || !stillCounted) setSelectedPath(undefined);
+	}, [workspaceItems, selectedPath, counts]);
 
 	// Refresh on open and every 10 seconds while open (runs settle asynchronously).
 	useEffect(() => {
@@ -565,6 +592,41 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, [open]);
+
+	// Vertical wheel over the pill row sweeps it horizontally (non-passive so
+	// the page does not also scroll while the row is being swept).
+	useEffect(() => {
+		if (!open || view.kind !== "list") return;
+		const el = tabsRef.current;
+		if (el === null) return;
+		const onWheel = (event: WheelEvent) => {
+			if (event.deltaY === 0) return;
+			const max = el.scrollWidth - el.clientWidth;
+			if (max <= 0) return;
+			const before = el.scrollLeft;
+			el.scrollLeft += event.deltaY;
+			if (el.scrollLeft !== before) event.preventDefault();
+		};
+		el.addEventListener("wheel", onWheel, { passive: false });
+		return () => el.removeEventListener("wheel", onWheel);
+	}, [open, view.kind]);
+
+	// Arrow keys move the active filter tab (wrapping at both ends).
+	const onTablistKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+		const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+		if (tabs.length === 0) return;
+		const current = document.activeElement;
+		let index = tabs.indexOf(current as HTMLButtonElement);
+		if (index === -1) index = tabs.findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+		if (index === -1) return;
+		const delta = event.key === "ArrowRight" ? 1 : -1;
+		const next = tabs[(index + delta + tabs.length) % tabs.length];
+		if (next === undefined) return;
+		event.preventDefault();
+		next.focus();
+		next.click();
+	};
 
 	const toggle = (id: string, enabled: boolean) => {
 		setBusy(true);
@@ -666,7 +728,7 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 							{view.kind === "form" && (
 								<TaskForm
 									tasks={tasks}
-									projectPath={workspacePath ?? ""}
+									projectPath={newTaskPath ?? ""}
 									initial={view.task}
 									onSaved={() => {
 										setView({ kind: "list" });
@@ -681,36 +743,63 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 							)}
 							{view.kind === "list" && (
 								<>
-									<div style={layout.row}>
-										<select
-											className={C.select}
-											style={{ flex: 1, minWidth: 0 }}
-											value={workspacePath ?? ""}
-											onChange={(event) => setProjectPath(event.target.value)}
+									<div
+										ref={tabsRef}
+										className={C.tabs}
+										role="tablist"
+										aria-label={t("tabs.label")}
+										onKeyDown={onTablistKeyDown}
+									>
+										<button
+											type="button"
+											role="tab"
+											aria-selected={selectedPath === undefined}
+											className={selectedPath === undefined ? `${C.tab} ${C.tabActive}` : C.tab}
+											onClick={() => setSelectedPath(undefined)}
 										>
-											{workspaceItems.map((item) => (
-												<option key={item.workspaceId} value={item.path}>
+											{t("tabs.all")}
+											<span className={C.tabCount}>({taskList.length})</span>
+										</button>
+										{workspaceItems.map((item) => {
+											// Only projects that actually own tasks get a tab.
+											if ((counts.get(item.path) ?? 0) === 0) return null;
+											const active = selectedPath === item.path;
+											return (
+												<button
+													key={item.workspaceId}
+													type="button"
+													role="tab"
+													aria-selected={active}
+													className={active ? `${C.tab} ${C.tabActive}` : C.tab}
+													title={item.path}
+													onClick={() => setSelectedPath(item.path)}
+												>
 													{item.title}
-												</option>
-											))}
-										</select>
+													<span className={C.tabCount}>({counts.get(item.path) ?? 0})</span>
+												</button>
+											);
+										})}
 									</div>
 									<div style={layout.row}>
 										<span className={C.note}>
-											{t("list.projectNote", { path: workspacePath ?? t("list.noProject") })}
+											{selectedPath === undefined
+												? t("list.allNote", { count: taskList.length })
+												: t("list.projectNote", { path: selectedPath })}
 										</span>
 										<span style={layout.spacer} />
 										<button
 											type="button"
 											className={`${C.btn} ${C.btnPrimary}`}
-											disabled={workspacePath === undefined}
+											disabled={newTaskPath === undefined}
 											onClick={() => setView({ kind: "form" })}
 										>
 											+ {t("list.newTask")}
 										</button>
 									</div>
-									{taskList.length === 0 && <div className={C.empty}>{t("list.empty")}</div>}
-									{taskList.map((task) => {
+									{visibleTasks.length === 0 && (
+										<div className={C.empty}>{selectedPath === undefined ? t("list.emptyAll") : t("list.empty")}</div>
+									)}
+									{visibleTasks.map((task) => {
 										const badge = taskBadge(t, task);
 										return (
 											<div key={task.id} className={C.row}>
