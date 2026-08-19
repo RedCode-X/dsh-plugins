@@ -68,6 +68,7 @@ export type AtSelectorInput = string | { date: string; time: string; time_zone: 
 
 /** Partial update accepted by {@link TasksStore.update}. */
 export interface TaskUpdateInput {
+	projectPath?: string;
 	name?: string;
 	prompt?: string;
 	kind?: "at" | "every" | "cron";
@@ -210,6 +211,9 @@ export class TasksStore {
 		const existing = this.tasks.get(TaskId(id));
 		if (existing === undefined) throw new TaskNotFoundError(id);
 		const next: Task = { ...existing };
+		if (patch.projectPath !== undefined) {
+			next.projectPath = await normalizeProjectPath(this.ctx, patch.projectPath);
+		}
 		if (patch.name !== undefined) next.name = normalizeText(patch.name, "name", 200);
 		if (patch.prompt !== undefined) next.prompt = normalizeText(patch.prompt, "prompt", 20_000);
 		if (patch.enabled !== undefined) next.enabled = patch.enabled;
@@ -222,6 +226,7 @@ export class TasksStore {
 				{
 					...existing,
 					...patch,
+					projectPath: next.projectPath,
 					model: patch.model === null ? undefined : patch.model,
 					kind: patch.kind,
 				},

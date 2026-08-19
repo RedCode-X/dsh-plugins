@@ -71,6 +71,7 @@ export const createInputSchema = z.object({
 
 /** Wire form of `tasks/update` patch. `model: null` clears the per-task override. */
 export const updateInputSchema = z.object({
+	projectPath: z.string().optional(),
 	name: z.string().optional(),
 	prompt: z.string().optional(),
 	kind: z.enum(["at", "every", "cron"]).optional(),

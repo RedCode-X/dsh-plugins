@@ -197,7 +197,8 @@ function RunHistory({ tasks, task, onBack, t }: RunHistoryProps) {
 
 interface TaskFormProps {
 	tasks: TasksRemote;
-	projectPath: string;
+	workspaces: readonly { readonly workspaceId: string; readonly title: string; readonly path: string }[];
+	defaultProjectPath?: string;
 	initial?: TaskView;
 	onSaved: () => void;
 	onCancel: () => void;
@@ -234,7 +235,10 @@ function groupModelOptions(options: ModelOption[]): { label: string; options: Mo
 	return groups;
 }
 
-function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFormProps) {
+function TaskForm({ tasks, workspaces, defaultProjectPath, initial, onSaved, onCancel, t }: TaskFormProps) {
+	const [projectPath, setProjectPath] = useState(
+		() => initial?.projectPath ?? defaultProjectPath ?? workspaces[0]?.path ?? "",
+	);
 	const [name, setName] = useState(initial?.name ?? "");
 	const [prompt, setPrompt] = useState(initial?.prompt ?? "");
 	const [kind, setKind] = useState<"at" | "every" | "cron">(initial?.kind ?? "at");
@@ -263,6 +267,22 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 	const [catalogBusy, setCatalogBusy] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
+
+	/** Flat option list for projects; a stored task whose project is not currently open is kept as a fallback. */
+	const projectOptions = useMemo(() => {
+		const options = workspaces.map((item) => ({
+			path: item.path,
+			label: item.title ? `${item.title} (${item.path})` : item.path,
+		}));
+		const trimmedPath = projectPath.trim();
+		if (trimmedPath !== "" && !options.some((opt) => opt.path === trimmedPath)) {
+			options.push({
+				path: trimmedPath,
+				label: t("form.projectOther", { path: trimmedPath }),
+			});
+		}
+		return options;
+	}, [workspaces, projectPath, t]);
 
 	/** Load the grouped provider catalog when the form mounts. */
 	const loadCatalog = useCallback(async () => {
@@ -316,6 +336,10 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 			: t("form.modelDefaultWith", { provider: catalog.default.provider, model: catalog.default.model });
 
 	const submit = async () => {
+		if (projectPath.trim() === "") {
+			setError(t("form.error.projectRequired"));
+			return;
+		}
 		if (name.trim() === "") {
 			setError(t("form.error.nameRequired"));
 			return;
@@ -325,7 +349,7 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 			return;
 		}
 		const base: CreateInput = {
-			projectPath,
+			projectPath: projectPath.trim(),
 			name: name.trim(),
 			prompt: prompt.trim(),
 			kind,
@@ -363,7 +387,11 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 					: await tasks.update(
 							initial.id,
 							// An empty picker clears a stored override back to the default.
-							{ ...input, ...(modelKey === "" ? { model: null } : {}) } as unknown as UpdateInput,
+							{
+								...input,
+								projectPath: projectPath.trim(),
+								...(modelKey === "" ? { model: null } : {}),
+							} as unknown as UpdateInput,
 						);
 			if (result.ok) {
 				onSaved();
@@ -382,6 +410,25 @@ function TaskForm({ tasks, projectPath, initial, onSaved, onCancel, t }: TaskFor
 					← {t("form.back")}
 				</button>
 				<span className={C.name}>{initial === undefined ? t("form.new") : t("form.edit")}</span>
+			</div>
+			<div style={layout.field}>
+				<div className={C.label}>{t("form.project")}</div>
+				{projectOptions.length > 0 ? (
+					<select className={C.select} value={projectPath} onChange={(event) => setProjectPath(event.target.value)}>
+						{projectOptions.map((option) => (
+							<option key={option.path} value={option.path}>
+								{option.label}
+							</option>
+						))}
+					</select>
+				) : (
+					<input
+						className={C.input}
+						value={projectPath}
+						onChange={(event) => setProjectPath(event.target.value)}
+						placeholder={t("form.projectPlaceholder")}
+					/>
+				)}
 			</div>
 			<div style={layout.field}>
 				<div className={C.label}>{t("form.taskName")}</div>
@@ -728,7 +775,8 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 							{view.kind === "form" && (
 								<TaskForm
 									tasks={tasks}
-									projectPath={newTaskPath ?? ""}
+									workspaces={workspaceItems}
+									defaultProjectPath={newTaskPath}
 									initial={view.task}
 									onSaved={() => {
 										setView({ kind: "list" });

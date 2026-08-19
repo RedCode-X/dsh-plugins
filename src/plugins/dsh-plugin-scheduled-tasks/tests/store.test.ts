@@ -176,4 +176,18 @@ describe("TasksStore model override", () => {
 		const updated = await store.update(created.id, { enabled: false });
 		expect(updated.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
 	});
+
+	it("updates projectPath when projectPath is provided in patch", async () => {
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		const created = await store.create({
+			projectPath: "/projects/demo",
+			name: "pinned",
+			prompt: "run in demo",
+			kind: "at",
+			at: "2026-08-20T09:00:00Z",
+		});
+		expect(created.projectPath).toBe("/projects/demo");
+		const updated = await store.update(created.id, { projectPath: "/projects/other" });
+		expect(updated.projectPath).toBe("/projects/other");
+	});
 });
