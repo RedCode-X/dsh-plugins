@@ -121,6 +121,14 @@ const RUN_VIEW_SCHEMA = {
 		output: { type: "string" },
 		error: { type: "string" },
 		sessionId: { type: "string" },
+		model: {
+			type: "object",
+			additionalProperties: false,
+			properties: {
+				provider: { type: "string", required: true },
+				model: { type: "string", required: true },
+			},
+		},
 	},
 } as const;
 
