@@ -753,7 +753,12 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 					<div className={C.card} role="dialog" aria-label={t("title")}>
 						<div className={C.header}>
 							<IconChecklistOutline14 size={16} />
-							<h2 className={C.title}>{t("title")}</h2>
+							<h2 className={C.title}>
+								{t("title")}
+								<a className={C.contact} href="https://paiban.md/qrcode.png" target="_blank" rel="noreferrer">
+									{t("contact")}
+								</a>
+							</h2>
 							<button type="button" className={C.btn} onClick={() => setOpen(false)}>
 								{t("close")}
 							</button>

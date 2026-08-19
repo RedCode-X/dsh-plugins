@@ -18,6 +18,7 @@ export const C = {
 	card: "dshst-card",
 	header: "dshst-header",
 	title: "dshst-title",
+	contact: "dshst-contact",
 	body: "dshst-body",
 	footer: "dshst-footer",
 	note: "dshst-note",
@@ -54,6 +55,8 @@ const css = `
 .dshst-card{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);width:min(680px,calc(100vw - 24px));max-height:min(640px,calc(100vh - 48px));box-shadow:var(--dsw-shadow-lv2);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
 .dshst-header{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);flex:none;justify-content:space-between;align-items:center;min-height:44px;padding:10px 12px;display:flex;gap:8px}
 .dshst-title{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;line-height:20px;margin:0;flex:1}
+.dshst-contact{color:var(--dsw-alias-state-info-primary,var(--dsw-alias-label-secondary));font-size:11px;font-weight:400;line-height:16px;text-decoration:underline;margin-left:8px;cursor:pointer;white-space:nowrap}
+.dshst-contact:hover{text-decoration:underline;opacity:.8}
 .dshst-body{flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dshst-footer{box-sizing:border-box;border-top:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);flex:none;padding:8px 12px}
 .dshst-note{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}

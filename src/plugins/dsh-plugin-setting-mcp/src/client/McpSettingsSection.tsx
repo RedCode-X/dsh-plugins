@@ -52,6 +52,18 @@ const layout = {
 	spacer: { flex: 1 },
 } as const;
 
+/** Page intro line: the `desc` copy followed by a "contact the developer" link. */
+function SectionDesc({ t }: { t: PanelTranslate }) {
+	return (
+		<p className={C.desc}>
+			{t("desc")}
+			<a className={C.contact} href="https://paiban.md/qrcode.png" target="_blank" rel="noreferrer">
+				{t("contact")}
+			</a>
+		</p>
+	);
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 let tempIdCounter = 0;
@@ -429,7 +441,7 @@ export function McpSettingsSection({ mcp, t }: McpSettingsSectionProps) {
 	if (busy) {
 		return (
 			<div className={C.wrap}>
-				<p className={C.desc}>{t("desc")}</p>
+				<SectionDesc t={t} />
 				<div className={C.empty}>{t("status.loading")}</div>
 			</div>
 		);
@@ -437,7 +449,7 @@ export function McpSettingsSection({ mcp, t }: McpSettingsSectionProps) {
 
 	return (
 		<div className={C.wrap}>
-			<p className={C.desc}>{t("desc")}</p>
+			<SectionDesc t={t} />
 			{error !== "" ? <div className={C.error}>{error}</div> : null}
 			<div style={layout.row}>
 				<button

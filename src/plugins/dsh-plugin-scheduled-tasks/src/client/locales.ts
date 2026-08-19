@@ -11,6 +11,8 @@
 export const zh = {
 	// Trigger / dialog title.
 	title: "定时任务",
+	// Contact the developer link (dialog title).
+	contact: "联系开发者",
 	// Task state badges.
 	"badge.finished": "已结束",
 	"badge.disabled": "已停用",
@@ -111,6 +113,7 @@ export type ScheduledTasksKey = keyof typeof zh;
 /** English dictionary, checked complete against the zh key set. */
 export const en: Record<ScheduledTasksKey, string> = {
 	title: "Scheduled tasks",
+	contact: "Contact developer",
 	"badge.finished": "Finished",
 	"badge.disabled": "Disabled",
 	"badge.due": "Due soon",

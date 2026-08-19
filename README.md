@@ -31,3 +31,9 @@ src/plugins/
   `window.__ModuleLoader__.load` handoff (see each plugin's
   `scripts/wrap-client.mjs`).
 - **vitest** for unit tests, **Biome** for lint/format.
+
+## 联系开发者
+
+扫描下方二维码联系开发者：
+
+![联系开发者](https://paiban.md/qrcode.png)
