@@ -79,14 +79,15 @@ function formatLocal(instant: string): string {
 function nextRunText(t: PanelTranslate, task: TaskView): string {
 	if (task.state === "finished") return t("nextRun.finished");
 	if (!task.enabled) return t("nextRun.disabled");
+	const time = formatLocal(task.scheduledAt);
 	const remaining = Date.parse(task.scheduledAt) - Date.now();
-	if (remaining <= 0) return t("nextRun.due");
+	if (remaining <= 0) return t("nextRun.due", { time });
 	const minutes = Math.floor(remaining / 60_000);
-	if (minutes < 1) return t("nextRun.soon");
-	if (minutes < 60) return t("nextRun.minutes", { count: minutes });
+	if (minutes < 1) return t("nextRun.soon", { time });
+	if (minutes < 60) return t("nextRun.minutes", { count: minutes, time });
 	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return t("nextRun.hours", { count: hours });
-	return t("nextRun.days", { count: Math.floor(hours / 24) });
+	if (hours < 24) return t("nextRun.hours", { count: hours, time });
+	return t("nextRun.days", { count: Math.floor(hours / 24), time });
 }
 
 function errorText(result: RpcResult<unknown>): string {

@@ -164,10 +164,17 @@ export class TaskScheduler {
 				}
 			} else if (task.kind === "cron" && task.cron !== undefined && task.timeZone !== undefined) {
 				const occurrence = resolveCronOccurrences(task.cron, task.timeZone, decisionNow);
-				if (occurrence.nextScheduledAt === undefined) {
+				if (occurrence.occurrenceAt === undefined) {
+					// The pattern never fires again: finish the task.
 					await this.store.persistTaskTransition(task.id, { state: "finished", enabled: false });
 				} else {
-					await this.store.persistTaskTransition(task.id, { scheduledAt: occurrence.nextScheduledAt });
+					// `occurrenceAt` is the first cron occurrence strictly after
+					// `decisionNow`, which is already at/after the target that just
+					// ran. It is the correct next scheduledAt. Storing
+					// `nextScheduledAt` (the occurrence *after* that) skips a full
+					// period on every run (e.g. a weekly Tuesday job advances to the
+					// following Tuesday instead of the next one).
+					await this.store.persistTaskTransition(task.id, { scheduledAt: occurrence.occurrenceAt });
 				}
 			} else {
 				await this.store.persistTaskTransition(task.id, { state: "finished", enabled: false });

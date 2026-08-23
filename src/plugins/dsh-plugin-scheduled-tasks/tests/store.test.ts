@@ -3,6 +3,9 @@ import type { TasksDomain } from "../src/domain.js";
 import { TasksStore } from "../src/store.js";
 import { type Task, TaskId } from "../src/types.js";
 
+/** A guaranteed-future absolute target so `at` tasks clear the strict-future check. */
+const FUTURE_AT = new Date(Date.now() + 86_400_000).toISOString();
+
 // ── minimal table/domain fakes over plain Maps ─────────────────────────────
 
 function makeTable<K, V>() {
@@ -103,7 +106,7 @@ describe("TasksStore model override", () => {
 			name: "pinned",
 			prompt: "run with a pinned model",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 			model: { provider: " deepseek-official ", model: " deepseek-chat " },
 		});
 		expect(task.model).toEqual({ provider: "deepseek-official", model: "deepseek-chat" });
@@ -116,7 +119,7 @@ describe("TasksStore model override", () => {
 			name: "default",
 			prompt: "use the default model",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 		});
 		expect(task.model).toBeUndefined();
 	});
@@ -129,7 +132,7 @@ describe("TasksStore model override", () => {
 				name: "bad",
 				prompt: "bad model",
 				kind: "at",
-				at: "2026-08-20T09:00:00Z",
+				at: FUTURE_AT,
 				model: { provider: "", model: "deepseek-chat" },
 			}),
 		).rejects.toMatchObject({ code: "invalid_model" });
@@ -142,7 +145,7 @@ describe("TasksStore model override", () => {
 			name: "pinned",
 			prompt: "run with a pinned model",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 			model: { provider: "deepseek-official", model: "deepseek-chat" },
 		});
 		const updated = await store.update(created.id, { model: { provider: "openai", model: "gpt-4o" } });
@@ -156,7 +159,7 @@ describe("TasksStore model override", () => {
 			name: "pinned",
 			prompt: "run with a pinned model",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 			model: { provider: "deepseek-official", model: "deepseek-chat" },
 		});
 		const updated = await store.update(created.id, { model: null });
@@ -170,7 +173,7 @@ describe("TasksStore model override", () => {
 			name: "pinned",
 			prompt: "run with a pinned model",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 			model: { provider: "deepseek-official", model: "deepseek-chat" },
 		});
 		const updated = await store.update(created.id, { enabled: false });
@@ -184,7 +187,7 @@ describe("TasksStore model override", () => {
 			name: "pinned",
 			prompt: "run in demo",
 			kind: "at",
-			at: "2026-08-20T09:00:00Z",
+			at: FUTURE_AT,
 		});
 		expect(created.projectPath).toBe("/projects/demo");
 		const updated = await store.update(created.id, { projectPath: "/projects/other" });

@@ -140,6 +140,36 @@ describe("TaskScheduler", () => {
 		expect(store.tasks.get("task-1")!.state).toBe("active");
 	});
 
+	it("advances a cron task to the next occurrence, not the one after it", async () => {
+		const store = new FakeStore();
+		// Due exactly at NOW (09:00Z). After the run the next 09:00 is tomorrow,
+		// and must become the new scheduledAt — not the following day.
+		const task = makeTask({
+			id: "task-1",
+			kind: "cron",
+			cron: "0 9 * * *",
+			timeZone: "UTC",
+			scheduledAt: "2026-08-14T09:00:00.000Z",
+		});
+		store.tasks.set(task.id, task);
+		const executor = new FakeExecutor();
+		const scheduler = new TaskScheduler(
+			makeCtx(),
+			store as unknown as TasksStore,
+			executor as unknown as TaskExecutor,
+			{
+				now: () => NOW,
+			},
+		);
+		scheduler.start();
+		await scheduler.flush();
+		await scheduler.dispose();
+
+		expect(executor.runs).toHaveLength(1);
+		expect(store.tasks.get("task-1")!.scheduledAt).toBe("2026-08-15T09:00:00.000Z");
+		expect(store.tasks.get("task-1")!.state).toBe("active");
+	});
+
 	it("does not dispatch a task whose target is still in the future", async () => {
 		const store = new FakeStore();
 		const task = makeTask({ id: "task-1", scheduledAt: "2026-08-14T10:00:00.000Z" });
