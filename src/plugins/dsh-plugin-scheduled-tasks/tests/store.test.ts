@@ -64,6 +64,34 @@ async function putTask(store: TasksStore, task: Task): Promise<void> {
 	);
 }
 
+describe("TasksStore.onChange", () => {
+	it("notifies after create, update, and remove so the scheduler can re-arm", async () => {
+		// Regression guard: the scheduler derives its timer only on a drive, so a
+		// task created/edited/deleted after boot must wake it — otherwise a task
+		// created while no timer is armed never fires at its target.
+		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });
+		let changes = 0;
+		store.onChange = () => {
+			changes += 1;
+		};
+
+		const task = await store.create({
+			projectPath: "/projects/demo",
+			name: "demo",
+			prompt: "do the thing",
+			kind: "every",
+			everySeconds: 300,
+		});
+		expect(changes).toBe(1);
+
+		await store.update(task.id, { name: "renamed" });
+		expect(changes).toBe(2);
+
+		await store.remove(task.id);
+		expect(changes).toBe(3);
+	});
+});
+
 describe("TasksStore.finishRun", () => {
 	it("settles a run and updates the owning task's last-run pointers", async () => {
 		const store = new TasksStore(makeCtx(), makeDomain(), { keepRunsPerTask: 20 });

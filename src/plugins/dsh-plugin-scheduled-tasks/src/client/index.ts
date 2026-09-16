@@ -7,9 +7,15 @@
  */
 // Load the locale service declarations (module augmentation for Context.locale).
 import type {} from "@deepseek-ai/dsh-client-locale/client";
-import type { ClientContext } from "@deepseek-ai/dsh-client-runtime/client";
+import type { Context as ClientContext } from "@deepseek-ai/cordis";
+// Load the SlotRegistry service declarations (module augmentation for ctx.slots).
+import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
+// Load the Remote service declarations (module augmentation for ctx.remote).
+import type {} from "@deepseek-ai/dsh-api-remotes/client";
 // Load the sidebar slot declarations (module augmentation for the SlotMap).
 import type {} from "@deepseek-ai/dsh-client-ui-sidebar/client";
+// Load the workspace standard-kit merge (GlobalStandardProps.useWorkspaces).
+import type {} from "@deepseek-ai/dsh-client-ui-workspace/client";
 import { en, type ScheduledTasksKey, zh } from "./locales.js";
 import type { TasksRemote } from "./remote.js";
 import { injectStyles } from "./styles.js";

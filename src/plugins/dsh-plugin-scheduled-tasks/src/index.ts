@@ -79,5 +79,12 @@ export async function apply(ctx: Context, config: ScheduledTasksConfig) {
 		},
 		"scheduled-tasks.teardown()",
 	);
+	// A task-set change (the UI service or a model tool) must re-arm the
+	// scheduler: its timer derives only on a drive, so without this a task
+	// created after boot would wait for the previously armed target — or, with
+	// no tasks at boot, never be dispatched at all.
+	store.onChange = () => {
+		scheduler.requestDrive();
+	};
 	scheduler.start();
 }

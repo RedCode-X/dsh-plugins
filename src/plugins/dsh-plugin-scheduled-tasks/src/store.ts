@@ -156,6 +156,15 @@ export class TasksStore {
 	private readonly runs: KvTable<RunId, RunRecord>;
 	private readonly config: TasksStoreConfig;
 
+	/**
+	 * Mutation hook fired after any durable task-set change (create, update,
+	 * delete). The plugin body wires it to the scheduler's `requestDrive`: the
+	 * scheduler derives its timer only on a drive, so without this a task
+	 * created after boot would wait for the previously armed target — or, with
+	 * no tasks at boot, never be dispatched at all.
+	 */
+	onChange: (() => void) | undefined;
+
 	constructor(
 		private readonly ctx: Context,
 		domain: Domain<TasksDomain>,
@@ -203,6 +212,7 @@ export class TasksStore {
 			updatedAt: createdAt,
 		};
 		await this.tasks.put(TaskId(task.id), task);
+		this.onChange?.();
 		return task;
 	}
 
@@ -243,6 +253,7 @@ export class TasksStore {
 		}
 		next.updatedAt = nowInstant();
 		await this.tasks.put(TaskId(next.id), next);
+		this.onChange?.();
 		return next;
 	}
 
@@ -254,6 +265,7 @@ export class TasksStore {
 		for (const [runId, run] of [...this.runs.entries()]) {
 			if (run.taskId === id) await this.runs.delete(runId);
 		}
+		this.onChange?.();
 		return true;
 	}
 

@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { Context } from "@deepseek-ai/cordis";
 import { type AgentRegistry, installModelSelection } from "@deepseek-ai/dsh-agent";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
-import { SessionId } from "@deepseek-ai/dsh-session";
+import { SessionId, type SessionEvent } from "@deepseek-ai/dsh-session";
 import type { TasksStore } from "./store.js";
 import type { RunRecord, RunStatus, Task, TaskModel } from "./types.js";
 
@@ -281,6 +281,17 @@ export class TaskExecutor {
 		await attachToWorkspace(ctx, task.projectPath, sessionId);
 		await renameRunSession(ctx, agent.session, task);
 		const firstSeq = agent.session.seq;
+		// DSH 0.1.5 removed the synchronous `session.events` log read (see the
+		// 2026-09-09 deprecate-synchronous-session-event-reads note). Collect this
+		// session's live events off the `session/event` firehose instead — the read
+		// that stays valid once history leaves memory. Subscribing right after
+		// `firstSeq` is captured keeps the same window the previous log read
+		// summarized (subscribing later would drop events; synchronously here drops
+		// none).
+		const collected: SessionEvent[] = [];
+		const disposeEvents = ctx.on("session/event", (session, event) => {
+			if (session.id === sessionId) collected.push(event);
+		});
 		const timeoutLabel = `${Math.round(this.config.runTimeoutMs / 60_000)} minutes`;
 		try {
 			// A freshly created agent may already be driving an initial turn
@@ -299,7 +310,7 @@ export class TaskExecutor {
 				}),
 			);
 			await withTimeout(agent.whenIdle(), this.config.runTimeoutMs, `run timed out after ${timeoutLabel}`);
-			const summary = summarizeRun(agent.session.events, firstSeq);
+			const summary = summarizeRun(collected, firstSeq);
 			const status: RunStatus = summary.reason?.kind === "completed" ? "completed" : "failed";
 			const error = describeReason(summary.reason);
 			return {
@@ -315,6 +326,7 @@ export class TaskExecutor {
 				spawnedSessionId: sessionId,
 			};
 		} finally {
+			disposeEvents();
 			// The run session deliberately stays registered (idle): disposing the
 			// agent would remove it from the in-memory session store and the
 			// workspace conversation list would drop it until the next page

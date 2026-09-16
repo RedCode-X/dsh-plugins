@@ -20,6 +20,13 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647;
 /** Dispatch is marked overdue only when the target is more than this far in the past. */
 const OVERDUE_GRACE_MS = 5_000;
 
+/**
+ * Safety re-drive interval. Bounds the delay of any missed wake — a cleared or
+ * never-armed timer, a rejected run, or a mutation the store hook did not
+ * observe — to this window instead of stalling the schedule indefinitely.
+ */
+const HEARTBEAT_MS = 30_000;
+
 /** Scheduler configuration derived from plugin config. */
 export interface TaskSchedulerConfig {
 	/** Wall clock source, replaceable in tests. */
@@ -33,6 +40,7 @@ function renderThrown(value: unknown): string {
 /** Live timer projection over the durable task tables. */
 export class TaskScheduler {
 	private timer: NodeJS.Timeout | undefined;
+	private heartbeat: NodeJS.Timeout | undefined;
 	private requested = false;
 	private drivePromise: Promise<void> | undefined;
 	private stopping = false;
@@ -49,8 +57,13 @@ export class TaskScheduler {
 		this.now = config.now ?? (() => Date.now());
 	}
 
-	/** Begin the first preflight and timer derivation. */
+	/** Begin the first preflight, the safety heartbeat, and timer derivation. */
 	start(): void {
+		this.heartbeat ??= setInterval(() => {
+			this.requestDrive();
+		}, HEARTBEAT_MS);
+		// The heartbeat is a fallback, never a reason to keep the process alive.
+		this.heartbeat.unref?.();
 		this.requestDrive();
 	}
 
@@ -58,6 +71,10 @@ export class TaskScheduler {
 	async dispose(): Promise<void> {
 		this.stopping = true;
 		this.requested = false;
+		if (this.heartbeat !== undefined) {
+			clearInterval(this.heartbeat);
+			this.heartbeat = undefined;
+		}
 		this.clearTimer();
 		await this.flush();
 	}
@@ -136,12 +153,18 @@ export class TaskScheduler {
 		const promise = this.executor
 			.run(task, { triggeredBy: "schedule", overdue })
 			.then(async (run) => {
-				await this.transition(task, decisionNow, run);
-				this.requestDrive();
+				await this.transition(task, decisionNow);
 				return run;
 			})
 			.catch(async (error) => {
+				// A rejected drive (timeout, unexpected throw) must not stall the
+				// schedule: consume the occurrence exactly like a settled run, then
+				// let the re-drive below re-arm the timer for the next target.
 				this.ctx.logger.warn(`scheduled-tasks: run for task "${task.id}" failed: ${renderThrown(error)}`);
+				await this.transition(task, decisionNow);
+			})
+			.finally(() => {
+				this.requestDrive();
 			});
 		this.inFlight.set(task.id, promise);
 		try {
@@ -152,8 +175,7 @@ export class TaskScheduler {
 	}
 
 	/** Apply the post-run schedule transition (finish one-shots, advance intervals/cron). */
-	private async transition(task: Task, decisionNow: number, run: RunRecord | undefined): Promise<void> {
-		if (run === undefined) return;
+	private async transition(task: Task, decisionNow: number): Promise<void> {
 		try {
 			if (task.kind === "every" && task.everySeconds !== undefined) {
 				const occurrence = resolveEveryOccurrence(task.scheduledAt, task.everySeconds, decisionNow);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { TaskExecutor } from "../src/executor.js";
 import { TaskScheduler } from "../src/scheduler.js";
 import type { TasksStore } from "../src/store.js";
@@ -291,5 +291,73 @@ describe("TaskScheduler", () => {
 		await scheduler.dispose();
 
 		expect(run.model).toEqual({ provider: "default-p", model: "default-m" });
+	});
+
+	it("dispatches a task once its future target arrives (timer path)", async () => {
+		vi.useFakeTimers();
+		try {
+			vi.setSystemTime(new Date(NOW));
+			const store = new FakeStore();
+			const task = makeTask({
+				id: "task-1",
+				kind: "cron",
+				cron: "*/5 * * * *",
+				timeZone: "UTC",
+				scheduledAt: "2026-08-14T09:05:00.000Z",
+			});
+			store.tasks.set(task.id, task);
+			const executor = new FakeExecutor();
+			const scheduler = new TaskScheduler(
+				makeCtx(),
+				store as unknown as TasksStore,
+				executor as unknown as TaskExecutor,
+			);
+			scheduler.start();
+			await scheduler.flush();
+			// The target is in the future: nothing runs yet.
+			expect(executor.runs).toHaveLength(0);
+
+			// Cross the target; the armed timer (or the safety heartbeat) must wake it.
+			await vi.advanceTimersByTimeAsync(5 * 60_000);
+			await scheduler.flush();
+			await scheduler.flush();
+
+			expect(executor.runs).toHaveLength(1);
+			expect(store.tasks.get("task-1")!.scheduledAt).toBe("2026-08-14T09:10:00.000Z");
+			await scheduler.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("consumes the occurrence even when a run rejects, so the schedule cannot stall", async () => {
+		const store = new FakeStore();
+		const task = makeTask({
+			id: "task-1",
+			kind: "cron",
+			cron: "*/5 * * * *",
+			timeZone: "UTC",
+			scheduledAt: "2026-08-14T09:00:00.000Z",
+		});
+		store.tasks.set(task.id, task);
+		const rejecting = {
+			run: async (): Promise<RunRecord> => {
+				throw new Error("boom");
+			},
+		};
+		const scheduler = new TaskScheduler(
+			makeCtx(),
+			store as unknown as TasksStore,
+			rejecting as unknown as TaskExecutor,
+			{ now: () => NOW },
+		);
+		scheduler.start();
+		await scheduler.flush();
+		await scheduler.flush();
+
+		// The doomed occurrence advanced instead of leaving the task stuck due.
+		expect(store.tasks.get("task-1")!.scheduledAt).toBe("2026-08-14T09:05:00.000Z");
+		expect(store.tasks.get("task-1")!.state).toBe("active");
+		await scheduler.dispose();
 	});
 });

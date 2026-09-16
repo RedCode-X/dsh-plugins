@@ -8,9 +8,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm -r --filter './src/plugins/*' run build",
-    "typecheck": "pnpm -r --filter './src/plugins/*' run typecheck",
-    "test": "pnpm -r --filter './src/plugins/*' run test",
+    "build": "pnpm -r --filter \"@opendsh/*\" run build",
+    "typecheck": "pnpm -r --filter \"@opendsh/*\" run typecheck",
+    "test": "pnpm -r --filter \"@opendsh/*\" run test",
     "format": "biome format --write .",
     "lint": "biome check ."
   },

@@ -11,7 +11,7 @@
  * @module @opendsh/dsh-plugin-scheduled-tasks
  */
 
-import type { WorkspaceListState } from "@deepseek-ai/dsh-client-runtime/client";
+import type { WorkspaceSnapshot } from "@deepseek-ai/dsh-api-workspace-controller/client";
 import { IconChecklistOutline14 } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { SnapshotSelectorHook, TranslateNS } from "@deepseek-ai/dsh-client-ui-slots";
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +29,7 @@ export interface TasksFooterActionProps {
 	/** Injected `remote.tasks` handle. */
 	tasks: TasksRemote;
 	/** Framework standard kit (scope `root`). */
-	useWorkspaces: SnapshotSelectorHook<WorkspaceListState>;
+	useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>;
 	/** Framework-injected translate seat (namespace `scheduled-tasks`). */
 	t: PanelTranslate;
 }
@@ -571,7 +571,6 @@ type View = { kind: "list" } | { kind: "form"; task?: TaskView } | { kind: "hist
 export function TasksFooterAction(props: TasksFooterActionProps) {
 	const { wide, tasks, t } = props;
 	const workspaceItems = props.useWorkspaces((state) => state.items);
-	const recentWorkspaceId = props.useWorkspaces((state) => state.recentWorkspaceId);
 	const [open, setOpen] = useState(false);
 	// Active filter tab: `undefined` selects the All tab (every project).
 	const [selectedPath, setSelectedPath] = useState<string | undefined>();
@@ -582,10 +581,15 @@ export function TasksFooterAction(props: TasksFooterActionProps) {
 	const tabsRef = useRef<HTMLDivElement>(null);
 
 	// Fallback project used as the create target while the All tab is active.
+	// DSH 0.1.5 exposes no `recentWorkspaceId`; the most recently mutated
+	// Workspace is the nearest equivalent (Host order breaks ties).
 	const fallbackPath = useMemo(() => {
-		const recent = workspaceItems.find((item) => item.workspaceId === recentWorkspaceId);
+		let recent: WorkspaceSnapshot["items"][number] | undefined;
+		for (const item of workspaceItems) {
+			if (recent === undefined || Date.parse(item.updatedAt) > Date.parse(recent.updatedAt)) recent = item;
+		}
 		return recent?.path ?? workspaceItems[0]?.path;
-	}, [workspaceItems, recentWorkspaceId]);
+	}, [workspaceItems]);
 
 	// One remote call returns every task; the per-project tabs and counts are
 	// derived client-side so the tab badges stay in sync with a single fetch.
